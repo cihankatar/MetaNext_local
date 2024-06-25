@@ -1,0 +1,12 @@
+torch              
+torchaudio             
+torchvision              
+numpy
+tqdm
+glob2 
+pillow 
+scikit-learn
+pyyaml
+timm
+matplotlib
+wandb

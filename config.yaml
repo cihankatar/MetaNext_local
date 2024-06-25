@@ -1,0 +1,60 @@
+ if training_mode == "ssl":
+        configs={
+        "mode"              :"ssl",
+        "sslmode"           :"simclr",
+        "imnetpretrained"   :False,
+        "bsize"             :8,
+        "epochs"            :150,
+        "imsize"            :128,
+        "lrate"             :0.001,
+        "aug"               :False,
+        "shuffle"           :True,
+        "sratio"            :None,
+        "workers"           :2,
+        "cutoutpr"          :None,
+        "cutoutbox"         :None,
+        "cutmixpr"          :None,
+        "noclasses"         :1,
+
+  elif training_mode == "supervised":
+
+        configs={
+        "mode"              :"supervised",
+        "sslmode"           :None,
+        "imnetpretrained"   :True,
+        "bsize"             :8,
+        "epochs"            :150,
+        "imsize"            :128,
+        "lrate"             :0.0001,
+        "aug"               :True,
+        "shuffle"           :True,
+        "sratio"            :None,
+        "workers"           :2,
+        "cutoutpr"          :0.5,
+        "cutoutbox"         :25,
+        "cutmixpr"          :0.5,
+        "noclasses"         :1,
+
+  elif training_mode == "ssl_pretrained":
+        ssl_config_to_load = config("ssl")
+        configs={
+        "mode"              :"ssl_pretrained",
+        "sslmode"           :None,
+        "imnetpretrained"   :None,
+        "bsize"             :8,
+        "epochs"            :150,
+        "imsize"            :128,
+        "lrate"             :0.0001,
+        "aug"               :True,
+        "shuffle"           :True,
+        "sratio"            :0.1,
+        "workers"           :2,
+        "cutoutpr"          :0.5,
+        "cutoutbox"         :25,
+        "cutmixpr"          :0.5,
+        "ssl_config"        :ssl_config_to_load,
+        "noclasses"         :1
+        }
+
+    else:
+        raise Exception('Invalid training type:', training_mode)

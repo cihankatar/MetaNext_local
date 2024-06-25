@@ -1,0 +1,16 @@
+services:
+    cont_config:
+        image: metanext
+        # enviromet:
+        #     - JUPYTER_TOKEN="mytoken"
+        ports:
+            - 0.0.0.0:8888
+        volumes:
+            - ./:/app   #MOUNTH DRIVE
+
+#to run in CLS --> docker compuse up 
+        
+        # build: ./
+
+        # enviromet:
+        #     - JUPYTER_TOKEN=mytoken
