@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 #import time
-from models.Metaformer import caformer_s18_in21ft1k
-from models.metanext_decoder import metanext_decoder
+#from models.Metaformer import caformer_s18_in21ft1k
+from models.encoder import encoder_function
+from models.decoder import decoder_function
 import torch.nn as nn
 from SSL.simclr import SimCLR
 
@@ -110,7 +111,7 @@ class Bottleneck(nn.Module):
         return out
 #####   MODEL #####
     
-class CA_CBA_MNEXT_B(nn.Module):
+class CA_CBA_Proposed(nn.Module):
     def __init__(self,n_classes,config_res=None,training_mode=None,imnetpretrained=None):
         super().__init__()
         
@@ -119,19 +120,18 @@ class CA_CBA_MNEXT_B(nn.Module):
         self.training_mode=training_mode
         self.bottleneck = Bottleneck(512, 512)
         size_dec=[512,320,128,64]
-        size_dec_resnet=[2048,1024,512,256,128,64]
         
         if not self.training_mode ==  "ssl_pretrained": 
-            self.caformer        = caformer_s18_in21ft1k(config_res,training_mode,imnetpretrained)
+            self.caformer       = encoder_function(config_res,training_mode,imnetpretrained)
 
-        self.output_norms = nn.ModuleList([nn.LayerNorm(i) for i in size_dec[::-1]])
+        self.output_norms       = nn.ModuleList([nn.LayerNorm(i) for i in size_dec[::-1]])
 
-        self.metanext = metanext_decoder()
-        self.CBA               = nn.ModuleList([BasicBlock(in_f, out_f) for in_f, out_f in zip(size_dec[::-1],size_dec[::-1])])  
+        self.metanext           = decoder_function()
+        self.CBA                = nn.ModuleList([BasicBlock(in_f, out_f) for in_f, out_f in zip(size_dec[::-1],size_dec[::-1])])  
 
-        self.sep_conv_block = nn.Sequential(nn.Conv2d(64,64,3,padding='same'),nn.BatchNorm2d(64),nn.ReLU())
-        self.up             = nn.Upsample(scale_factor=2, mode='nearest')
-        self.convlast       = nn.Conv2d(64,1,kernel_size=1, stride=1,padding='same')
+        self.sep_conv_block     = nn.Sequential(nn.Conv2d(64,64,3,padding='same'),nn.BatchNorm2d(64),nn.ReLU())
+        self.up                 = nn.Upsample(scale_factor=2, mode='nearest')
+        self.convlast           = nn.Conv2d(64,1,kernel_size=1, stride=1,padding='same')
 
     def forward(self, inputs):                      # 1x  3 x 128 x 128
         

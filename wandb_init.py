@@ -32,7 +32,7 @@ def config_func(training_mode):
         configs={
         "mode"              :"supervised",
         "sslmode_modelname" :None,
-        "imnetpr"           :True,
+        "imnetpr"           :False,
         "bsize"             :8,
         "epochs"            :150,
         "imsize"            :256,
@@ -235,7 +235,7 @@ def wandb_init (WANDB_API_KEY,WANDB_DIR,args,config_log,data):
 
 def log_image_table(im_test, prediction, labels, batch_size):
     #rand_idx=np.random.randint(batch_size)
-    rand_idx=2
+    rand_idx=3
     prediction    = prediction[rand_idx]        ## (1, 512, 512)
     prediction    = np.squeeze(prediction)     ## (512, 512)
     prediction    = prediction > 0.5

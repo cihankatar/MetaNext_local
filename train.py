@@ -20,10 +20,19 @@ from utils.Loss import Dice_CE_Loss
 from augmentation.Augmentation import cutmix
 
 from models.CA_CBA_CA import CA_CBA_CA
+from models.CA_CBA_mnext import CA_CBA_MNEXT_B
+
 from models.CA_CA import CA_CA
-from models.CA_CBA_mnext import CA_CBA_NEXTM_huge
+from models.CA_CBA_Proposed import CA_CBA_Proposed
+from models.CA_Proposed import CA_Proposed
+
+from models.proposed_model import Model
+
 
 from models.CA_mnexts import CA_MNEXT
+from models.CA_CBA_nextm import CA_CBA_NEXTM_huge
+
+
 from models.CA_CBA_convatt import CA_CBA_ConvAtt
 from models.CA_CBA_convatt_1 import CA_CBA_ConvAtt_1
 from models.CA_convatt import CA_Convatt
@@ -110,7 +119,7 @@ def main():
     
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model                       = CA_CBA_NEXTM_huge(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model                       = Model(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":

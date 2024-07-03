@@ -9,24 +9,36 @@ from functools import partial
 import sys
 #from transformers import ViTImageProcessor, ViTForImageClassification
 
+def _cfg(url='', **kwargs):
+    return {
+        'url': url,
+        'num_classes': 1000, 'input_size': (3, 224, 224), 'pool_size': None,
+        'crop_pct': 1.0, 'interpolation': 'bicubic',
+        'mean': IMAGENET_DEFAULT_MEAN, 'std': IMAGENET_DEFAULT_STD, 'classifier': 'head',
+        **kwargs
+    }
 
-    
-class conv_block(nn.Module):
-    def __init__(self, in_c, out_c):
-        super().__init__()
-        
-        self.conv_block=nn.Sequential(nn.Conv2d(in_c, out_c, kernel_size=3, padding=1),
-                                     nn.BatchNorm2d(out_c),
-                                     nn.ReLU(),
-                                     nn.Conv2d(out_c, out_c, kernel_size=3, padding=1),
-                                     nn.BatchNorm2d(out_c),
-                                     nn.ReLU())
-               
-    def forward(self, inputs):
-        conv_block_out=self.conv_block(inputs)
+default_cfgs = {
 
-        return conv_block_out
+    'caformer_s18': _cfg(
+        url='https://huggingface.co/sail/dl/resolve/main/caformer/caformer_s18.pth'),
+    'caformer_s18_384': _cfg(
+        url='https://huggingface.co/sail/dl/resolve/main/caformer/caformer_s18_384.pth',
+        input_size=(3, 384, 384)),
+    'caformer_s18_in21ft1k': _cfg(
+        url='https://huggingface.co/sail/dl/resolve/main/caformer/caformer_s18_in21ft1k.pth'),
+    'caformer_s18_384_in21ft1k': _cfg(
+        url='https://huggingface.co/sail/dl/resolve/main/caformer/caformer_s18_384_in21ft1k.pth',
+        input_size=(3, 384, 384)),
+    'caformer_s18_in21k': _cfg(
+        url='https://huggingface.co/sail/dl/resolve/main/caformer/caformer_s18_in21k.pth',
+        num_classes=21841),
     
+    'convformer_s18_in21ft1k': _cfg(
+        url='https://huggingface.co/sail/dl/resolve/main/convformer/convformer_s18_in21ft1k.pth'),
+
+}
+
 
 class StarReLU(nn.Module):
     """
@@ -125,8 +137,7 @@ class Attention(nn.Module):
             self.num_heads = 1
         
         self.attention_dim = self.num_heads * self.head_dim
-        
-        
+
         self.qkv        = nn.Linear(dim, self.attention_dim * 3, bias=qkv_bias)
         self.attn_drop  = nn.Dropout(attn_drop)
         self.proj       = nn.Linear(self.attention_dim, dim, bias=proj_bias)
@@ -136,7 +147,6 @@ class Attention(nn.Module):
     def forward(self, x):
         B, H, W, C = x.shape
         N = H * W
-        
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)   # make torchscript happy (cannot use tensor as tuple)
 
@@ -150,8 +160,22 @@ class Attention(nn.Module):
         return x
 
 
+class RandomMixing(nn.Module):
+    def __init__(self, num_tokens=196, **kwargs):
+        super().__init__()
+        self.random_matrix = nn.parameter.Parameter(
+            data=torch.softmax(torch.rand(num_tokens, num_tokens), dim=-1), 
+            requires_grad=False)
+    def forward(self, x):
+        B, H, W, C = x.shape
+        x = x.reshape(B, H*W, C)
+        x = torch.einsum('mn, bnc -> bmc', self.random_matrix, x)
+        x = x.reshape(B, H, W, C)
+        return x
+
+
 class SepConv(nn.Module):
-    """
+    r"""
     Inverted separable convolution from MobileNetV2: https://arxiv.org/abs/1801.04381.
     """
     def __init__(self, dim, expansion_ratio=2,act1_layer=StarReLU,act2_layer=nn.Identity,bias=False,kernel_size=7,padding=3,**kwargs, ):
@@ -181,8 +205,10 @@ class SepConv(nn.Module):
         return x
 
 
-class upsampling(nn.Module):
-
+class Downsampling(nn.Module):
+    """
+    Downsampling implemented by a layer of convolution.
+    """
     def __init__(self, in_channels, out_channels, 
         kernel_size, stride=1, padding=0, 
         pre_norm=None, post_norm=None, pre_permute=False):
@@ -191,16 +217,16 @@ class upsampling(nn.Module):
         self.pre_permute = pre_permute
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, 
                               stride=stride, padding=padding)
-        
-        self.up   = nn.Upsample(scale_factor=2, mode='nearest')
-        
         self.post_norm = post_norm(out_channels) if post_norm else nn.Identity()
 
     def forward(self, x):
-        x = self.conv(x.permute(0, 3, 1, 2))
-        x = self.up(x)
-        x = self.post_norm(x.permute(0,2,3,1)).permute(0, 3, 1, 2)
-        
+        x = self.pre_norm(x)
+        if self.pre_permute:
+            # if take [B, H, W, C] as input, permute it to [B, C, H, W]
+            x = x.permute(0, 3, 1, 2)
+        x = self.conv(x)
+        x = x.permute(0, 2, 3, 1) # [B, C, H, W] -> [B, H, W, C]
+        x = self.post_norm(x)
         return x
 
 class Scale(nn.Module):
@@ -259,42 +285,14 @@ class LayerNormWithoutBias(nn.Module):
 
 
 
-UPSAMPLE_LAYERS_FOUR_STAGES =[partial(upsampling,
-                kernel_size=3, padding='same', 
-                post_norm=partial(LayerNormGeneral, bias=False, eps=1e-6), pre_permute=True
+DOWNSAMPLE_LAYERS_FOUR_STAGES = [partial(Downsampling,
+            kernel_size=7, stride=4, padding=2,
+            post_norm=partial(LayerNormGeneral, bias=False, eps=1e-6)
+            )] + \
+            [partial(Downsampling,
+                kernel_size=3, stride=2, padding=1, 
+                pre_norm=partial(LayerNormGeneral, bias=False, eps=1e-6), pre_permute=True
             )]*3
-
-
-
-class convextv2(nn.Module):
-    """ ConvNeXtV2 Block.
-    
-    Args:
-        dim (int): Number of input channels.
-        drop_path (float): Stochastic depth rate. Default: 0.0
-    """
-    def __init__(self, dim, drop=0.):
-        super().__init__()
-        self.dwconv = nn.Conv2d(dim, dim, kernel_size=3, padding='same', groups=dim) # depthwise conv
-
-        self.norm = nn.LayerNorm(dim, eps=1e-6)
-        self.pwconv1 = nn.Linear(dim, 4 * dim) # pointwise/1x1 convs, implemented with linear layers
-        self.act = nn.GELU()
-        self.pwconv2 = nn.Linear(4 * dim, dim)
-        self.drop_path = DropPath(drop) if drop > 0. else nn.Identity()
-
-    def forward(self, x):
-        
-        input = x
-        x = x.permute(0, 3, 1, 2) # (N, C, H, W) -> (N, H, W, C)
-        x = self.dwconv(x)#self.dwconv2(x)+self.dwconv3(x)
-        x = x.permute(0, 2, 3, 1)
-        x = self.norm(x)
-        x = self.pwconv1(x)
-        x = self.act(x)
-        x = self.pwconv2(x)
-        x = self.norm(input) + self.drop_path(x)
-        return x
 
 
 
@@ -303,7 +301,7 @@ class MetaFormerBlock(nn.Module):
     Implementation of one MetaFormer block.
     """
     def __init__(self, dim,
-                 token_mixer=nn.Identity, cnext=convextv2,
+                 token_mixer=nn.Identity, mlp=Mlp,
                  norm_layer=nn.LayerNorm,
                  drop=0., drop_path=0.,
                  layer_scale_init_value=None, res_scale_init_value=None
@@ -319,28 +317,29 @@ class MetaFormerBlock(nn.Module):
         self.res_scale1     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
 
         self.norm2          = norm_layer(dim)
-        self.Cnext          = cnext(dim=dim, drop=0)
+        self.mlp            = mlp(dim=dim, drop=drop)
         self.drop_path2     = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
         self.layer_scale2   = Scale(dim=dim, init_value=layer_scale_init_value) if layer_scale_init_value else nn.Identity()
         self.res_scale2     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
         
     def forward(self, x):
-        x = self.norm1(self.res_scale1(x)) + self.layer_scale1(self.drop_path1(self.token_mixer(self.norm1(x))))
+        x = self.res_scale1(x) + self.layer_scale1(self.drop_path1(self.token_mixer(self.norm1(x))))
 
-        x = self.norm2(self.res_scale2(x)) + self.layer_scale2(self.drop_path2(self.Cnext(self.norm2(x))))
+        x = self.res_scale2(x) + self.layer_scale2(self.drop_path2(self.mlp(self.norm2(x))))
 
         return x
     
 
+
 class MetaFormer(nn.Module):
 
-    def __init__(self, num_classes=1000, 
+    def __init__(self, in_chans=3, num_classes=1000, 
                  depths=[2, 2, 6, 2],
                  dims=[64, 128, 320, 512],
-                 up_layers=UPSAMPLE_LAYERS_FOUR_STAGES,
+                 downsample_layers=DOWNSAMPLE_LAYERS_FOUR_STAGES,
                  token_mixers=nn.Identity,
-                 convnexts=convextv2,
+                 mlps=Mlp,
                  norm_layers=partial(LayerNormWithoutBias, eps=1e-6), # partial(LayerNormGeneral, eps=1e-6, bias=False),
                  drop_path_rate=0.,
                  head_dropout=0.0, 
@@ -361,17 +360,17 @@ class MetaFormer(nn.Module):
         num_stage      = len(depths)
         self.num_stage = num_stage
 
-        if not isinstance(up_layers, (list, tuple)):
-            up_layers = [up_layers] * num_stage
+        if not isinstance(downsample_layers, (list, tuple)):
+            downsample_layers = [downsample_layers] * num_stage
         
-        self.up_layers = nn.ModuleList([up_layers[i](dims[i], dims[i+1]) for i in range(num_stage-1)])
-        self.up_layers.append(up_layers[-1](dims[-1], dims[-1]))
-
+        down_dims = [in_chans] + dims
+        self.downsample_layers = nn.ModuleList([downsample_layers[i](down_dims[i], down_dims[i+1]) for i in range(num_stage)])
+        
         if not isinstance(token_mixers, (list, tuple)):
             token_mixers = [token_mixers] * num_stage
 
-        if not isinstance(convnexts, (list, tuple)):
-            convnexts = [convnexts] * num_stage
+        if not isinstance(mlps, (list, tuple)):
+            mlps = [mlps] * num_stage
 
         if not isinstance(norm_layers, (list, tuple)):
             norm_layers = [norm_layers] * num_stage
@@ -390,7 +389,7 @@ class MetaFormer(nn.Module):
             stage = nn.Sequential(
                 *[MetaFormerBlock(  dim=dims[i],
                                     token_mixer=token_mixers[i],
-                                    cnext=convnexts[i],
+                                    mlp=mlps[i],
                                     norm_layer=norm_layers[i],
                                     drop_path=dp_rates[cur + j],
                                     layer_scale_init_value=layer_scale_init_values[i],
@@ -418,30 +417,86 @@ class MetaFormer(nn.Module):
     def no_weight_decay(self):
         return {'norm'}
 
-    def get_features(self, x, s):
-
+    def get_features(self, x):
+        out=[]
         for i in range(self.num_stage):
-            x = self.stages[i](x.permute(0, 2, 3, 1))
-            x = self.up_layers[i](x)
-            if i <3:
-                x = s[i] + x
+            x = self.downsample_layers[i](x)
+            x = self.stages[i](x)
+            out_ = x.permute(0, 3, 1, 2)
+            out.append(out_)
+        return self.norm(x.mean([1, 2])),out
 
-        return self.norm(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+    def forward(self, x):
+        x,features = self.get_features(x)
+        x = self.head(x)
+        return x,features
 
-    def forward(self, x,s):
-        decoder_output = self.get_features(x,s)
-        return decoder_output
 
-
-def metanext_decoder(pretrained=False,**kwargs):
+def encoder_function(config_res,training_mode=None,pretrained=None,**kwargs):
 
     model = MetaFormer(
-        depths=[1,1,1,1],
-        dims=[512, 320, 128, 64],
-        token_mixers=[Attention,Attention,SepConv, SepConv],
+        depths=[3, 3,9, 3],
+        dims=[64, 128, 320, 512],
+        token_mixers=[SepConv, SepConv, Attention, Attention],
         head_fn=MlpHead,
         **kwargs)
     
+    model.default_cfg = default_cfgs['caformer_s18_in21ft1k']
+
+    if training_mode=="ssl_pretrained":
+        
+        if torch.cuda.is_available():
+            ML_DATA_OUTPUT = os.environ["ML_DATA_OUTPUT"]
+        else:
+            ML_DATA_OUTPUT = os.environ["ML_DATA_OUTPUT_LOCAL"]
+        checkpoint_path = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(config_res)+"]"
+        
+        if os.path.exists(checkpoint_path):
+            if pretrained == True:
+                print("SSL Pretrained SimCLR Imagenet pretrained weights are being used")
+            else:
+                print("SSL Pretrained SimCLR with random weights are being used")
+
+            if torch.cuda.is_available():
+                model.load_state_dict(torch.load(checkpoint_path))
+            else: 
+                model.load_state_dict(torch.load(checkpoint_path, map_location=torch.device('cpu')))
+                
+        else:
+            raise Exception('No Model to Load for ssl_pretrained')
+        return model
+
+
+    elif training_mode=="supervised":
+        if pretrained:
+            state_dict = torch.hub.load_state_dict_from_url(
+                url= model.default_cfg['url'], map_location="cpu", check_hash=True)
+            model.load_state_dict(state_dict)
+            print("Imagenet Pretrained weights are being used")
+
+        else:
+            print("random weights are being used...")
+        return model
+
+    elif training_mode=="ssl":
+        if pretrained:
+            state_dict = torch.hub.load_state_dict_from_url(
+                url= model.default_cfg['url'], map_location="cpu", check_hash=True)
+            model.load_state_dict(state_dict)
+            print("Imagenet Pretrained weights are being used")
+
+        else:
+            print("random weights are being used...")
+        return model
+
+def convformer_s18_in21ft1k(pretrained=True, **kwargs):
+    model = MetaFormer(
+        depths=[3, 3, 9, 3],
+        dims=[64, 128, 320, 512],
+        token_mixers=[SepConv, SepConv, Attention, Attention],
+        head_fn=MlpHead,
+        **kwargs)
+    model.default_cfg = default_cfgs['convformer_s18_in21ft1k']
 
     if pretrained:
         state_dict = torch.hub.load_state_dict_from_url(
@@ -453,7 +508,7 @@ def metanext_decoder(pretrained=False,**kwargs):
 if __name__ == '__main__':
     # Loading data
 
-    model = metanext_decoder()
+    model = convformer_s18_in21ft1k()
     #model2 = VİT_NN(images_dim=128,input_channel=3, token_dim=768,  n_heads=4, mlp_layer_size=1024, t_blocks=12, patch_size=8,classification=False)
 
     #print(model(torch.rand(2, 3, 224, 224))[0].shape)

@@ -434,7 +434,7 @@ class MetaFormer(nn.Module):
 def nextmeta_decoder(pretrained=False,**kwargs):
 
     model = MetaFormer(
-        depths=[1,1,1,1],
+        depths=[3,9,3,3],
         dims=[512, 320, 128, 64],
         token_mixers=[Attention,Attention,SepConv, SepConv],
         head_fn=MlpHead,

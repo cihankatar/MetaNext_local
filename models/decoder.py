@@ -149,11 +149,8 @@ class Attention(nn.Module):
         x = self.proj_drop(x)
         return x
 
-
 class SepConv(nn.Module):
-    """
-    Inverted separable convolution from MobileNetV2: https://arxiv.org/abs/1801.04381.
-    """
+
     def __init__(self, dim, expansion_ratio=2,act1_layer=StarReLU,act2_layer=nn.Identity,bias=False,kernel_size=7,padding=3,**kwargs, ):
         super().__init__()
 
@@ -179,7 +176,6 @@ class SepConv(nn.Module):
         x = self.act2(x)
         x = self.pwconv2(x)
         return x
-
 
 class upsampling(nn.Module):
 
@@ -266,7 +262,7 @@ UPSAMPLE_LAYERS_FOUR_STAGES =[partial(upsampling,
 
 
 
-class convextv2(nn.Module):
+class ConvBlock(nn.Module):
     """ ConvNeXtV2 Block.
     
     Args:
@@ -298,12 +294,12 @@ class convextv2(nn.Module):
 
 
 
-class MetaFormerBlock(nn.Module):
+class DecoderBlocks(nn.Module):
     """
     Implementation of one MetaFormer block.
     """
     def __init__(self, dim,
-                 token_mixer=nn.Identity, cnext=convextv2,
+                 token_mixer=nn.Identity, cblock=ConvBlock,
                  norm_layer=nn.LayerNorm,
                  drop=0., drop_path=0.,
                  layer_scale_init_value=None, res_scale_init_value=None
@@ -319,28 +315,28 @@ class MetaFormerBlock(nn.Module):
         self.res_scale1     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
 
         self.norm2          = norm_layer(dim)
-        self.Cnext          = cnext(dim=dim, drop=0)
+        self.Cblock         = cblock(dim=dim, drop=0)
         self.drop_path2     = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
         self.layer_scale2   = Scale(dim=dim, init_value=layer_scale_init_value) if layer_scale_init_value else nn.Identity()
         self.res_scale2     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
         
     def forward(self, x):
-        x = self.norm1(self.res_scale1(x)) + self.layer_scale1(self.drop_path1(self.token_mixer(self.norm1(x))))
+        x = self.res_scale1(x) + self.layer_scale1(self.drop_path1(self.token_mixer(self.norm1(x))))
 
-        x = self.norm2(self.res_scale2(x)) + self.layer_scale2(self.drop_path2(self.Cnext(self.norm2(x))))
+        x = self.res_scale2(x) + self.layer_scale2(self.drop_path2(self.Cblock(self.norm2(x))))
 
         return x
     
 
-class MetaFormer(nn.Module):
+class Decoder(nn.Module):
 
     def __init__(self, num_classes=1000, 
                  depths=[2, 2, 6, 2],
                  dims=[64, 128, 320, 512],
                  up_layers=UPSAMPLE_LAYERS_FOUR_STAGES,
                  token_mixers=nn.Identity,
-                 convnexts=convextv2,
+                 conv_blocks=ConvBlock,
                  norm_layers=partial(LayerNormWithoutBias, eps=1e-6), # partial(LayerNormGeneral, eps=1e-6, bias=False),
                  drop_path_rate=0.,
                  head_dropout=0.0, 
@@ -370,8 +366,8 @@ class MetaFormer(nn.Module):
         if not isinstance(token_mixers, (list, tuple)):
             token_mixers = [token_mixers] * num_stage
 
-        if not isinstance(convnexts, (list, tuple)):
-            convnexts = [convnexts] * num_stage
+        if not isinstance(conv_blocks, (list, tuple)):
+            conv_blocks = [conv_blocks] * num_stage
 
         if not isinstance(norm_layers, (list, tuple)):
             norm_layers = [norm_layers] * num_stage
@@ -383,14 +379,14 @@ class MetaFormer(nn.Module):
         if not isinstance(res_scale_init_values, (list, tuple)):
             res_scale_init_values = [res_scale_init_values] * num_stage
 
-        self.stages = nn.ModuleList() # each stage consists of multiple metaformer blocks
+        self.stages = nn.ModuleList() # each stage consists of multiple  blocks
         cur = 0
 
         for i in range(num_stage):
             stage = nn.Sequential(
-                *[MetaFormerBlock(  dim=dims[i],
+                *[DecoderBlocks(  dim=dims[i],
                                     token_mixer=token_mixers[i],
-                                    cnext=convnexts[i],
+                                    cblock=conv_blocks[i],
                                     norm_layer=norm_layers[i],
                                     drop_path=dp_rates[cur + j],
                                     layer_scale_init_value=layer_scale_init_values[i],
@@ -433,13 +429,12 @@ class MetaFormer(nn.Module):
         return decoder_output
 
 
-def metanext_decoder(pretrained=False,**kwargs):
+def decoder_function(pretrained=False,**kwargs):
 
-    model = MetaFormer(
+    model = Decoder(
         depths=[1,1,1,1],
         dims=[512, 320, 128, 64],
-        token_mixers=[Attention,Attention,SepConv, SepConv],
-        head_fn=MlpHead,
+        token_mixers=[Attention,Attention,Attention, Attention],
         **kwargs)
     
 
@@ -453,7 +448,7 @@ def metanext_decoder(pretrained=False,**kwargs):
 if __name__ == '__main__':
     # Loading data
 
-    model = metanext_decoder()
+    model = decoder_function()
     #model2 = VİT_NN(images_dim=128,input_channel=3, token_dim=768,  n_heads=4, mlp_layer_size=1024, t_blocks=12, patch_size=8,classification=False)
 
     #print(model(torch.rand(2, 3, 224, 224))[0].shape)

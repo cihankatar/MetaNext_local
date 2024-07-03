@@ -16,7 +16,8 @@ from data.data_loader import loader
 from models.CA_CBA_CA import CA_CBA_CA
 from models.CA_CA import CA_CA
 from models.CA_CBA_mnext import CA_CBA_MNEXT_B
-from models.CA_mnext import CA_MNEXT
+from models.CA_mnexts import CA_MNEXT
+from models.CA_CBA_nextm import CA_CBA_NEXTM_huge
 
 from models.CA_CBA_Convnext import CA_CBA_Convnext
 from models.CA_Convnext import CA_Convnext
@@ -38,7 +39,7 @@ if __name__ == "__main__":
 
     device      = using_device()
 
-    data='isic_1'
+    data='kvasir_1'
     training_mode="supervised"
     train=False
 
@@ -59,7 +60,7 @@ if __name__ == "__main__":
     
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model                       = CA_CBA_UNET(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model                       = CA_CBA_NEXTM_huge(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":
