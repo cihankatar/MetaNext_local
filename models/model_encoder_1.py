@@ -206,15 +206,15 @@ class LayerNormWithoutBias(nn.Module):
         return F.layer_norm(x, self.normalized_shape, weight=self.weight, bias=self.bias, eps=self.eps)
 
 
+
 DOWNSAMPLE_LAYERS_FOUR_STAGES = [partial(Downsampling,
-            kernel_size=7, stride=4, padding=2,
+            kernel_size=3, stride=2, padding=1,
             post_norm=partial(LayerNormGeneral, bias=False, eps=1e-6)
             )] + \
             [partial(Downsampling,
                 kernel_size=3, stride=2, padding=1, 
                 pre_norm=partial(LayerNormGeneral, bias=False, eps=1e-6), pre_permute=True
             )]*3
-
 
 class EncoderBlock(nn.Module):
     """
@@ -257,7 +257,7 @@ class Encoder(nn.Module):
 
     def __init__(self, in_chans=3,  
                  depths=[2, 2, 6, 2],
-                 dims=[64, 128, 320, 512],
+                 dims=[64, 128, 256, 512],
                  downsample_layers=DOWNSAMPLE_LAYERS_FOUR_STAGES,
                  token_mixers=nn.Identity,
                  conv_blocks=ConvBlock,
@@ -349,9 +349,9 @@ class Encoder(nn.Module):
 def encoder_function(config_res,training_mode=None,pretrained=False,**kwargs):
 
     model = Encoder(
-        depths=[1, 1,1,1],
-        dims=[64, 128, 320, 512],
-        token_mixers=[Attention, Attention, Attention, Attention],
+        depths=[1,1,1,1],
+        dims=[64, 128, 256, 512],
+        token_mixers=[SepConv, SepConv, Attention, Attention],
         **kwargs)
     
 
