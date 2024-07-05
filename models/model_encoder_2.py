@@ -73,7 +73,7 @@ class SepConv(nn.Module):
     r"""
     Inverted separable convolution from MobileNetV2: https://arxiv.org/abs/1801.04381.
     """
-    def __init__(self, dim, expansion_ratio=2,act1_layer=StarReLU,act2_layer=nn.Identity,bias=False,kernel_size=7,padding=3,**kwargs, ):
+    def __init__(self, dim, expansion_ratio=2,act1_layer=StarReLU,act2_layer=nn.Identity,bias=False,kernel_size=3,padding='same',**kwargs, ):
         super().__init__()
 
         med_channels    = int(expansion_ratio * dim)
@@ -127,7 +127,7 @@ class ConvBlock(nn.Module):
         x = self.pwconv1(x)
         x = self.act(x)
         x = self.pwconv2(x)
-        x = self.norm(input) + self.drop_path(x)
+        x = input + self.drop_path(x)
         return x
 
 class Downsampling(nn.Module):
@@ -237,7 +237,6 @@ class EncoderBlock(nn.Module):
         self.res_scale1     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
 
         self.norm2          = norm_layer(dim)
-        self.Cblock         = cblock(dim=dim, drop=0)
 
         self.drop_path2     = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
@@ -246,12 +245,9 @@ class EncoderBlock(nn.Module):
         
     def forward(self, x):
         x = self.res_scale1(x) + self.layer_scale1(self.drop_path1(self.token_mixer(self.norm1(x))))
-
-        x = self.res_scale2(x) + self.layer_scale2(self.drop_path2(self.Cblock(self.norm2(x))))
-
+        
         return x
     
-
 
 class Encoder(nn.Module):
 
@@ -260,7 +256,6 @@ class Encoder(nn.Module):
                  dims=[64, 128, 256, 512],
                  downsample_layers=DOWNSAMPLE_LAYERS_FOUR_STAGES,
                  token_mixers=nn.Identity,
-                 conv_blocks=ConvBlock,
 
                  norm_layers=partial(LayerNormWithoutBias, eps=1e-6), # partial(LayerNormGeneral, eps=1e-6, bias=False),
                  drop_path_rate=0.,
@@ -288,9 +283,6 @@ class Encoder(nn.Module):
         if not isinstance(token_mixers, (list, tuple)):
             token_mixers = [token_mixers] * num_stage
 
-        if not isinstance(conv_blocks, (list, tuple)):
-                    conv_blocks = [conv_blocks] * num_stage
-
         if not isinstance(norm_layers, (list, tuple)):
             norm_layers = [norm_layers] * num_stage
 
@@ -309,7 +301,6 @@ class Encoder(nn.Module):
             stage = nn.Sequential(
                 *[EncoderBlock(  dim=dims[i],
                                     token_mixer=token_mixers[i],
-                                    cblock=conv_blocks[i],
                                     norm_layer=norm_layers[i],
                                     drop_path=dp_rates[cur + j],
                                     layer_scale_init_value=layer_scale_init_values[i],
@@ -349,7 +340,7 @@ class Encoder(nn.Module):
 def encoder_function(config_res,training_mode=None,pretrained=False,**kwargs):
 
     model = Encoder(
-        depths=[3, 3, 9, 3],
+        depths=[1, 1, 1, 1],
         dims=[64, 128, 256, 512],
         token_mixers=[SepConv, SepConv, Attention, Attention],
         **kwargs)

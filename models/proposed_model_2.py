@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 #import time
 #from models.Metaformer import caformer_s18_in21ft1k
-from models.model_encoder_2 import encoder_function
-from models.model_decoder_2 import decoder_function
+from models.model_encoder_3 import encoder_function
+from models.model_decoder_3 import decoder_function
 import torch.nn as nn
 from SSL.simclr import SimCLR
 
@@ -111,7 +111,7 @@ class Bottleneck(nn.Module):
         return out
 #####   MODEL #####
     
-class Model_5(nn.Module):
+class Model_6(nn.Module):
     def __init__(self,n_classes,config_res=None,training_mode=None,imnetpretrained=None):
         super().__init__()
         

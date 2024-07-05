@@ -32,6 +32,7 @@ from models.Unet import UNET
 from models.CA_CBA_Proposed import CA_CBA_Proposed
 from models.CA_Proposed import CA_Proposed
 from models.proposed_model_1 import Model_4
+from models.proposed_model_2 import Model_6
 
 
 from SSL.simclr import SimCLR
@@ -107,7 +108,7 @@ def main():
     
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model                       = Model_4(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model                       = Model_6(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":

@@ -299,7 +299,7 @@ class DecoderBlocks(nn.Module):
     Implementation of one MetaFormer block.
     """
     def __init__(self, dim,
-                 token_mixer=nn.Identity,
+                 token_mixer=nn.Identity, cblock=ConvBlock,
                  norm_layer=nn.LayerNorm,
                  drop=0., drop_path=0.,
                  layer_scale_init_value=None, res_scale_init_value=None
@@ -315,6 +315,7 @@ class DecoderBlocks(nn.Module):
         self.res_scale1     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
 
         self.norm2          = norm_layer(dim)
+        self.Cblock         = cblock(dim=dim, drop=0)
         self.drop_path2     = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
         self.layer_scale2   = Scale(dim=dim, init_value=layer_scale_init_value) if layer_scale_init_value else nn.Identity()
@@ -322,6 +323,9 @@ class DecoderBlocks(nn.Module):
         
     def forward(self, x):
         x = self.res_scale1(x) + self.layer_scale1(self.drop_path1(self.token_mixer(self.norm1(x))))
+
+        x = self.res_scale2(x) + self.layer_scale2(self.drop_path2(self.Cblock(self.norm2(x))))
+
         return x
     
 
@@ -332,6 +336,7 @@ class Decoder(nn.Module):
                  dims=[64, 128, 320, 512],
                  up_layers=UPSAMPLE_LAYERS_FOUR_STAGES,
                  token_mixers=nn.Identity,
+                 conv_blocks=ConvBlock,
                  norm_layers=partial(LayerNormWithoutBias, eps=1e-6), # partial(LayerNormGeneral, eps=1e-6, bias=False),
                  drop_path_rate=0.,
                  head_dropout=0.0, 
@@ -361,6 +366,8 @@ class Decoder(nn.Module):
         if not isinstance(token_mixers, (list, tuple)):
             token_mixers = [token_mixers] * num_stage
 
+        if not isinstance(conv_blocks, (list, tuple)):
+            conv_blocks = [conv_blocks] * num_stage
 
         if not isinstance(norm_layers, (list, tuple)):
             norm_layers = [norm_layers] * num_stage
@@ -379,6 +386,7 @@ class Decoder(nn.Module):
             stage = nn.Sequential(
                 *[DecoderBlocks(  dim=dims[i],
                                     token_mixer=token_mixers[i],
+                                    cblock=conv_blocks[i],
                                     norm_layer=norm_layers[i],
                                     drop_path=dp_rates[cur + j],
                                     layer_scale_init_value=layer_scale_init_values[i],
