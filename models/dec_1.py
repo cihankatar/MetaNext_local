@@ -10,103 +10,6 @@ import sys
 #from transformers import ViTImageProcessor, ViTForImageClassification
 
 
-    
-class conv_block(nn.Module):
-    def __init__(self, in_c, out_c):
-        super().__init__()
-        
-        self.conv_block=nn.Sequential(nn.Conv2d(in_c, out_c, kernel_size=3, padding=1),
-                                     nn.BatchNorm2d(out_c),
-                                     nn.ReLU(),
-                                     nn.Conv2d(out_c, out_c, kernel_size=3, padding=1),
-                                     nn.BatchNorm2d(out_c),
-                                     nn.ReLU())
-               
-    def forward(self, inputs):
-        conv_block_out=self.conv_block(inputs)
-
-        return conv_block_out
-    
-
-class StarReLU(nn.Module):
-    """
-    StarReLU: s * relu(x) ** 2 + b
-    """
-    def __init__(self, scale_value=1.0, bias_value=0.0,
-        scale_learnable=True, bias_learnable=True, 
-        mode=None, inplace=False):
-        super().__init__()
-        self.inplace = inplace
-        self.relu = nn.ReLU(inplace=inplace)
-        self.scale = nn.Parameter(scale_value * torch.ones(1),
-            requires_grad=scale_learnable)
-        self.bias = nn.Parameter(bias_value * torch.ones(1),
-            requires_grad=bias_learnable)
-    def forward(self, x):
-        return self.scale * self.relu(x)**2 + self.bias
-
-class SquaredReLU(nn.Module):
-    """
-        Squared ReLU: https://arxiv.org/abs/2109.08668
-    """
-    def __init__(self, inplace=False):
-        super().__init__()
-        self.relu = nn.ReLU(inplace=inplace)
-    def forward(self, x):
-        return torch.square(self.relu(x))
-
-
-
-class Mlp(nn.Module):
-    """ MLP as used in MetaFormer models, eg Transformer, MLP-Mixer, PoolFormer, MetaFormer baslines and related networks.
-    Mostly copied from timm.
-    """
-    def __init__(self, dim, mlp_ratio=4, out_features=None, act_layer=StarReLU, drop=0., bias=False, **kwargs):
-        super().__init__()
-        in_features = dim
-        out_features = out_features or in_features
-        hidden_features = int(mlp_ratio * in_features)
-        drop_probs = (drop,drop)
-
-        self.fc1 = nn.Linear(in_features, hidden_features, bias=bias)
-        self.act = act_layer()
-        self.drop1 = nn.Dropout(drop_probs[0])
-        self.fc2 = nn.Linear(hidden_features, out_features, bias=bias)
-        self.drop2 = nn.Dropout(drop_probs[1])
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = self.act(x)
-        x = self.drop1(x)
-        x = self.fc2(x)
-        x = self.drop2(x)
-        return x
-
-
-class MlpHead(nn.Module):
-    """ MLP classification head
-    """
-    # num_classes in referance article = 1000. for the simsclr =1000
-    def __init__(self, dim, num_classes=1000, mlp_ratio=4, act_layer=SquaredReLU,
-        norm_layer=nn.LayerNorm, head_dropout=0., bias=True):
-        super().__init__()
-        hidden_features = int(mlp_ratio * dim)
-        self.fc1 = nn.Linear(dim, hidden_features, bias=bias)
-        self.act = act_layer()
-        self.norm = norm_layer(hidden_features)
-        self.fc2 = nn.Linear(hidden_features, num_classes, bias=bias)
-        self.head_dropout = nn.Dropout(head_dropout)
-
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = self.act(x)
-        x = self.norm(x)
-        x = self.head_dropout(x)
-        x = self.fc2(x)
-        return x
-
-
 class Attention(nn.Module):
     """
     Vanilla self-attention from Transformer: https://arxiv.org/abs/1706.03762.
@@ -149,33 +52,6 @@ class Attention(nn.Module):
         x = self.proj_drop(x)
         return x
 
-class SepConv(nn.Module):
-
-    def __init__(self, dim, expansion_ratio=2,act1_layer=StarReLU,act2_layer=nn.Identity,bias=False,kernel_size=7,padding=3,**kwargs, ):
-        super().__init__()
-
-        med_channels    = int(expansion_ratio * dim)
-        
-        self.pwconv1    = nn.Linear(dim, med_channels, bias=bias)
-
-        self.act1       = act1_layer()   # Relu
-        
-        self.dwconv     = nn.Conv2d(
-                                    med_channels, med_channels, kernel_size=kernel_size,
-                                    padding=padding, groups=med_channels, bias=bias) # depthwise conv
-        
-        self.act2       = act2_layer()
-        self.pwconv2    = nn.Linear(med_channels, dim, bias=bias)
-
-    def forward(self, x):
-        x = self.pwconv1(x)
-        x = self.act1(x)
-        x = x.permute(0, 3, 1, 2)
-        x = self.dwconv(x)
-        x = x.permute(0, 2, 3, 1)
-        x = self.act2(x)
-        x = self.pwconv2(x)
-        return x
 
 class upsampling(nn.Module):
 
@@ -187,16 +63,16 @@ class upsampling(nn.Module):
         self.pre_permute = pre_permute
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, 
                               stride=stride, padding=padding)
-        
+        self.act= nn.GELU()
         self.up   = nn.Upsample(scale_factor=2, mode='nearest')
         
         self.post_norm = post_norm(out_channels) if post_norm else nn.Identity()
 
     def forward(self, x):
+        x= self.pre_norm(x)
         x = self.conv(x.permute(0, 3, 1, 2))
+        x = self.act(x)
         x = self.up(x)
-        x = self.post_norm(x.permute(0,2,3,1)).permute(0, 3, 1, 2)
-        
         return x
 
 class Scale(nn.Module):
@@ -257,12 +133,12 @@ class LayerNormWithoutBias(nn.Module):
 
 UPSAMPLE_LAYERS_FOUR_STAGES =[partial(upsampling,
                 kernel_size=3, padding='same', 
-                post_norm=partial(LayerNormGeneral, bias=False, eps=1e-6), pre_permute=True
+                pre_norm=partial(LayerNormGeneral, bias=False, eps=1e-6)
             )]*3
 
 
 
-class ConvBlock(nn.Module):
+class SepConv(nn.Module):
     """ ConvNeXtV2 Block.
     
     Args:
@@ -289,7 +165,6 @@ class ConvBlock(nn.Module):
         x = self.pwconv1(x)
         x = self.act(x)
         x = self.pwconv2(x)
-        x = self.norm(input) + self.drop_path(x)
         return x
 
 
@@ -299,7 +174,8 @@ class DecoderBlocks(nn.Module):
     Implementation of one MetaFormer block.
     """
     def __init__(self, dim,
-                 token_mixer=nn.Identity, cblock=ConvBlock,
+                 token_mixer=nn.Identity,
+                 cblock=SepConv,
                  norm_layer=nn.LayerNorm,
                  drop=0., drop_path=0.,
                  layer_scale_init_value=None, res_scale_init_value=None
@@ -315,19 +191,19 @@ class DecoderBlocks(nn.Module):
         self.res_scale1     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
 
         self.norm2          = norm_layer(dim)
-        self.Cblock         = cblock(dim=dim, drop=0)
         self.drop_path2     = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        #if self.token_mixer.__class__.__name__=='Attention':
+        self.Cblock         = cblock(dim=dim, drop=0)
 
         self.layer_scale2   = Scale(dim=dim, init_value=layer_scale_init_value) if layer_scale_init_value else nn.Identity()
         self.res_scale2     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
         
     def forward(self, x):
         x = self.res_scale1(x) + self.layer_scale1(self.drop_path1(self.token_mixer(self.norm1(x))))
-
+        #if self.token_mixer.__class__.__name__=='Attention':
         x = self.res_scale2(x) + self.layer_scale2(self.drop_path2(self.Cblock(self.norm2(x))))
 
         return x
-    
 
 class Decoder(nn.Module):
 
@@ -336,7 +212,6 @@ class Decoder(nn.Module):
                  dims=[64, 128, 320, 512],
                  up_layers=UPSAMPLE_LAYERS_FOUR_STAGES,
                  token_mixers=nn.Identity,
-                 conv_blocks=ConvBlock,
                  norm_layers=partial(LayerNormWithoutBias, eps=1e-6), # partial(LayerNormGeneral, eps=1e-6, bias=False),
                  drop_path_rate=0.,
                  head_dropout=0.0, 
@@ -366,8 +241,6 @@ class Decoder(nn.Module):
         if not isinstance(token_mixers, (list, tuple)):
             token_mixers = [token_mixers] * num_stage
 
-        if not isinstance(conv_blocks, (list, tuple)):
-            conv_blocks = [conv_blocks] * num_stage
 
         if not isinstance(norm_layers, (list, tuple)):
             norm_layers = [norm_layers] * num_stage
@@ -386,7 +259,6 @@ class Decoder(nn.Module):
             stage = nn.Sequential(
                 *[DecoderBlocks(  dim=dims[i],
                                     token_mixer=token_mixers[i],
-                                    cblock=conv_blocks[i],
                                     norm_layer=norm_layers[i],
                                     drop_path=dp_rates[cur + j],
                                     layer_scale_init_value=layer_scale_init_values[i],
@@ -417,8 +289,9 @@ class Decoder(nn.Module):
     def get_features(self, x, s):
 
         for i in range(self.num_stage):
-            x = self.stages[i](x.permute(0, 2, 3, 1))
             x = self.up_layers[i](x)
+            x = self.stages[i](x.permute(0, 2, 3, 1))
+            
             if i <3:
                 x = s[i] + x
 
@@ -434,7 +307,7 @@ def decoder_function(pretrained=False,**kwargs):
     model = Decoder(
         depths=[1,1,1,1],
         dims=[512,256,128,64],
-        token_mixers=[Attention, Attention, SepConv, SepConv],
+        token_mixers=[SepConv, SepConv, SepConv, SepConv],
         **kwargs)
     
 

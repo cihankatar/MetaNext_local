@@ -12,20 +12,25 @@ from utils.metrics import *
 
 from data.data_loader import loader
 
+"""
 from models.CA_CBA_CA import CA_CBA_CA
 from models.CA_CA import CA_CA
 from models.CA_CBA_mnext import CA_CBA_MNEXT_B
-from models.CA_mnexts import CA_MNEXT
 from models.CA_CBA_Convnext import CA_CBA_Convnext
 from models.CA_Convnext import CA_Convnext
 from models.CA_CBA_Unet import CA_CBA_UNET
 from models.CA_Unet import CA_UNET
 from models.Unet import UNET
-
-from models.CA_CBA_Proposed import CA_CBA_Proposed
 from models.CA_Proposed import CA_Proposed
-from models.proposed_model_1 import Model_2
 
+"""
+from models.Unet import UNET
+from models.CA_CBA_Proposed import CA_CBA_Proposed
+
+from models.Model import model_n3
+from SSL.simclr import SimCLR
+from models.Metaformer import caformer_s18_in21ft1k
+from models.resnet import resnet_v1
 
 from models.Metaformer import caformer_s18_in21ft1k
 from models.resnet import resnet_v1
@@ -61,7 +66,7 @@ if __name__ == "__main__":
     
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model                       = Model_3(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model                       = CA_CBA_Proposed(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":

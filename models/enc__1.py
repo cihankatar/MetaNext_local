@@ -9,23 +9,45 @@ from functools import partial
 import sys
 #from transformers import ViTImageProcessor, ViTForImageClassification
 
+class LayerNormGeneral(nn.Module):
 
-class StarReLU(nn.Module):
-    """
-    StarReLU: s * relu(x) ** 2 + b
-    """
-    def __init__(self, scale_value=1.0, bias_value=0.0,
-        scale_learnable=True, bias_learnable=True, 
-        mode=None, inplace=False):
+    def __init__(self, affine_shape=None, normalized_dim=(-1, ), scale=True, 
+        bias=True, eps=1e-5):
         super().__init__()
-        self.inplace = inplace
-        self.relu = nn.ReLU(inplace=inplace)
-        self.scale = nn.Parameter(scale_value * torch.ones(1),
-            requires_grad=scale_learnable)
-        self.bias = nn.Parameter(bias_value * torch.ones(1),
-            requires_grad=bias_learnable)
+        self.normalized_dim = normalized_dim
+        self.use_scale = scale
+        self.use_bias = bias
+        self.weight = nn.Parameter(torch.ones(affine_shape)) if scale else None
+        self.bias = nn.Parameter(torch.zeros(affine_shape)) if bias else None
+        self.eps = eps
+
     def forward(self, x):
-        return self.scale * self.relu(x)**2 + self.bias
+        c = x - x.mean(self.normalized_dim, keepdim=True)
+        s = c.pow(2).mean(self.normalized_dim, keepdim=True)
+        x = c / torch.sqrt(s + self.eps)
+        if self.use_scale:
+            x = x * self.weight
+        if self.use_bias:
+            x = x + self.bias
+        return x
+
+
+class LayerNormWithoutBias(nn.Module):
+    """
+    Equal to partial(LayerNormGeneral, bias=False) but faster, 
+    because it directly utilizes otpimized F.layer_norm
+    """
+    def __init__(self, normalized_shape, eps=1e-5, **kwargs):
+        super().__init__()
+        self.eps = eps
+        self.bias = None
+        if isinstance(normalized_shape, int):
+            normalized_shape = (normalized_shape,)
+        self.weight = nn.Parameter(torch.ones(normalized_shape))
+        self.normalized_shape = normalized_shape
+    def forward(self, x):
+        return F.layer_norm(x, self.normalized_shape, weight=self.weight, bias=self.bias, eps=self.eps)
+
 
 
 class Attention(nn.Module):
@@ -70,46 +92,12 @@ class Attention(nn.Module):
 
 
 class SepConv(nn.Module):
-    r"""
-    Inverted separable convolution from MobileNetV2: https://arxiv.org/abs/1801.04381.
-    """
-    def __init__(self, dim, expansion_ratio=2,act1_layer=StarReLU,act2_layer=nn.Identity,bias=False,kernel_size=7,padding=3,**kwargs, ):
-        super().__init__()
+    """ 
 
-        med_channels    = int(expansion_ratio * dim)
-        
-        self.pwconv1    = nn.Linear(dim, med_channels, bias=bias)
-
-        self.act1       = act1_layer()   # Relu
-        
-        self.dwconv     = nn.Conv2d(
-                                    med_channels, med_channels, kernel_size=kernel_size,
-                                    padding=padding, groups=med_channels, bias=bias) # depthwise conv
-        
-        self.act2       = act2_layer()
-        self.pwconv2    = nn.Linear(med_channels, dim, bias=bias)
-
-    def forward(self, x):
-        x = self.pwconv1(x)
-        x = self.act1(x)
-        x = x.permute(0, 3, 1, 2)
-        x = self.dwconv(x)
-        x = x.permute(0, 2, 3, 1)
-        x = self.act2(x)
-        x = self.pwconv2(x)
-        return x
-
-
-class ConvBlock(nn.Module):
-    """ ConvNeXtV2 Block.
-    
-    Args:
-        dim (int): Number of input channels.
-        drop_path (float): Stochastic depth rate. Default: 0.0
     """
     def __init__(self, dim, drop=0.):
         super().__init__()
-        self.dwconv = nn.Conv2d(dim, dim, kernel_size=3, padding='same', groups=dim) # depthwise conv
+        self.dwconv = nn.Conv2d(dim, dim, kernel_size=7, padding='same', groups=dim) # depthwise conv
 
         self.norm = nn.LayerNorm(dim, eps=1e-6)
         self.pwconv1 = nn.Linear(dim, 4 * dim) # pointwise/1x1 convs, implemented with linear layers
@@ -127,7 +115,6 @@ class ConvBlock(nn.Module):
         x = self.pwconv1(x)
         x = self.act(x)
         x = self.pwconv2(x)
-        x = self.norm(input) + self.drop_path(x)
         return x
 
 class Downsampling(nn.Module):
@@ -136,13 +123,15 @@ class Downsampling(nn.Module):
     """
     def __init__(self, in_channels, out_channels, 
         kernel_size, stride=1, padding=0, 
-        pre_norm=None, post_norm=None, pre_permute=False):
+        pre_norm=None, pre_permute=False):
         super().__init__()
         self.pre_norm = pre_norm(in_channels) if pre_norm else nn.Identity()
         self.pre_permute = pre_permute
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, 
-                              stride=stride, padding=padding)
-        self.post_norm = post_norm(out_channels) if post_norm else nn.Identity()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding)
+        
+        #self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding='same')
+        #self.down = nn.MaxPool2d(2,2)
+        self.act= nn.GELU()
 
     def forward(self, x):
         x = self.pre_norm(x)
@@ -150,8 +139,9 @@ class Downsampling(nn.Module):
             # if take [B, H, W, C] as input, permute it to [B, C, H, W]
             x = x.permute(0, 3, 1, 2)
         x = self.conv(x)
+        x = self.act(x)
+        #x= self.down(x)
         x = x.permute(0, 2, 3, 1) # [B, C, H, W] -> [B, H, W, C]
-        x = self.post_norm(x)
         return x
 
 class Scale(nn.Module):
@@ -166,50 +156,10 @@ class Scale(nn.Module):
         return x * self.scale
         
 
-class LayerNormGeneral(nn.Module):
-
-    def __init__(self, affine_shape=None, normalized_dim=(-1, ), scale=True, 
-        bias=True, eps=1e-5):
-        super().__init__()
-        self.normalized_dim = normalized_dim
-        self.use_scale = scale
-        self.use_bias = bias
-        self.weight = nn.Parameter(torch.ones(affine_shape)) if scale else None
-        self.bias = nn.Parameter(torch.zeros(affine_shape)) if bias else None
-        self.eps = eps
-
-    def forward(self, x):
-        c = x - x.mean(self.normalized_dim, keepdim=True)
-        s = c.pow(2).mean(self.normalized_dim, keepdim=True)
-        x = c / torch.sqrt(s + self.eps)
-        if self.use_scale:
-            x = x * self.weight
-        if self.use_bias:
-            x = x + self.bias
-        return x
-
-
-class LayerNormWithoutBias(nn.Module):
-    """
-    Equal to partial(LayerNormGeneral, bias=False) but faster, 
-    because it directly utilizes otpimized F.layer_norm
-    """
-    def __init__(self, normalized_shape, eps=1e-5, **kwargs):
-        super().__init__()
-        self.eps = eps
-        self.bias = None
-        if isinstance(normalized_shape, int):
-            normalized_shape = (normalized_shape,)
-        self.weight = nn.Parameter(torch.ones(normalized_shape))
-        self.normalized_shape = normalized_shape
-    def forward(self, x):
-        return F.layer_norm(x, self.normalized_shape, weight=self.weight, bias=self.bias, eps=self.eps)
-
 
 
 DOWNSAMPLE_LAYERS_FOUR_STAGES = [partial(Downsampling,
             kernel_size=3, stride=2, padding=1,
-            post_norm=partial(LayerNormGeneral, bias=False, eps=1e-6)
             )] + \
             [partial(Downsampling,
                 kernel_size=3, stride=2, padding=1, 
@@ -221,7 +171,8 @@ class EncoderBlock(nn.Module):
     Implementation of one MetaFormer block.
     """
     def __init__(self, dim,
-                 token_mixer=nn.Identity,cblock=ConvBlock,
+                 token_mixer=nn.Identity,
+                 cblock=SepConv,
                  norm_layer=nn.LayerNorm,
                  drop=0., drop_path=0.,
                  layer_scale_init_value=None, res_scale_init_value=None
@@ -237,6 +188,7 @@ class EncoderBlock(nn.Module):
         self.res_scale1     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
 
         self.norm2          = norm_layer(dim)
+        #if self.token_mixer.__class__.__name__=='Attention':
         self.Cblock         = cblock(dim=dim, drop=0)
 
         self.drop_path2     = DropPath(drop_path) if drop_path > 0. else nn.Identity()
@@ -246,12 +198,11 @@ class EncoderBlock(nn.Module):
         
     def forward(self, x):
         x = self.res_scale1(x) + self.layer_scale1(self.drop_path1(self.token_mixer(self.norm1(x))))
-
+        #if self.token_mixer.__class__.__name__=='Attention':
         x = self.res_scale2(x) + self.layer_scale2(self.drop_path2(self.Cblock(self.norm2(x))))
 
         return x
     
-
 
 class Encoder(nn.Module):
 
@@ -260,7 +211,6 @@ class Encoder(nn.Module):
                  dims=[64, 128, 256, 512],
                  downsample_layers=DOWNSAMPLE_LAYERS_FOUR_STAGES,
                  token_mixers=nn.Identity,
-                 conv_blocks=ConvBlock,
 
                  norm_layers=partial(LayerNormWithoutBias, eps=1e-6), # partial(LayerNormGeneral, eps=1e-6, bias=False),
                  drop_path_rate=0.,
@@ -288,9 +238,6 @@ class Encoder(nn.Module):
         if not isinstance(token_mixers, (list, tuple)):
             token_mixers = [token_mixers] * num_stage
 
-        if not isinstance(conv_blocks, (list, tuple)):
-                    conv_blocks = [conv_blocks] * num_stage
-
         if not isinstance(norm_layers, (list, tuple)):
             norm_layers = [norm_layers] * num_stage
 
@@ -309,7 +256,6 @@ class Encoder(nn.Module):
             stage = nn.Sequential(
                 *[EncoderBlock(  dim=dims[i],
                                     token_mixer=token_mixers[i],
-                                    cblock=conv_blocks[i],
                                     norm_layer=norm_layers[i],
                                     drop_path=dp_rates[cur + j],
                                     layer_scale_init_value=layer_scale_init_values[i],
@@ -349,9 +295,9 @@ class Encoder(nn.Module):
 def encoder_function(config_res,training_mode=None,pretrained=False,**kwargs):
 
     model = Encoder(
-        depths=[3, 3, 9, 3],
+        depths=[1,1,1,1],
         dims=[64, 128, 256, 512],
-        token_mixers=[SepConv, SepConv, Attention, Attention],
+        token_mixers=[SepConv, SepConv, SepConv, SepConv],
         **kwargs)
     
 
