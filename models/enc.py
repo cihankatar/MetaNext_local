@@ -123,9 +123,9 @@ class SepConv(nn.Module):
     def __init__(self, dim, drop=0.):
         super().__init__()
         self.dwconv = nn.Conv2d(dim, dim, kernel_size=3, padding='same',groups=dim) # depthwise conv
-        self.norm = nn.LayerNorm(dim, eps=1e-6)
+        self.norm   = nn.LayerNorm(dim, eps=1e-6)
         self.pwconv1 = nn.Linear(dim, 4 * dim) # pointwise/1x1 convs, implemented with linear layers
-        self.act = nn.GELU()
+        self.act    = nn.GELU()
         self.pwconv2 = nn.Linear(4 * dim, dim)
         self.drop_path = DropPath(drop) if drop > 0. else nn.Identity()
 
@@ -319,7 +319,7 @@ def encoder_function(config_res,training_mode=None,pretrained=False,**kwargs):
     model = Encoder(
         depths=[1,1,1,1],
         dims=[64, 128, 256, 512],
-        token_mixers=[SepConv, SepConv, SepConv, SepConv],
+        token_mixers=[SepConv, SepConv, Attention, Attention],
         **kwargs)
     
 

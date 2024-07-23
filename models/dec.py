@@ -306,7 +306,7 @@ def decoder_function(pretrained=False,**kwargs):
     model = Decoder(
         depths=[1,1,1,1],
         dims=[512,256,128,64],
-        token_mixers=[SepConv, SepConv, SepConv, SepConv],
+        token_mixers=[Attention, Attention, SepConv, SepConv],
         **kwargs)
     
 
