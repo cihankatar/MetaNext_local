@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from models.Metaformer import caformer_s18_in21ft1k
+from models.enc import encoder_function
 from utils.batch_norm import SyncBatchNorm, BatchNorm1d,BatchNorm2d
 from utils.layer_norm import LayerNorm
 from models.resnet import resnet_v1
@@ -21,9 +22,9 @@ class SimCLR(nn.Module):
         self.projection_dim = 128
 
         if modelnm == "simclr_caformer":
-            self.metaformer = caformer_s18_in21ft1k(config_res,training_mode,imnetpretrained)
-            self.modelname = self.metaformer.__class__.__name__
-            self.model = SyncBatchNorm.convert_sync_batchnorm(self.metaformer)
+            self.encoder = encoder_function(config_res,training_mode,imnetpretrained)
+            self.modelname = self.encoder.__class__.__name__
+            self.model = SyncBatchNorm.convert_sync_batchnorm(self.encoder)
         
         elif modelnm == "simclr_resnet":
             self.resnet     = resnet_v1((3,256,256), 50 ,1,config_res,training_mode,imnetpretrained)
@@ -53,7 +54,7 @@ class SimCLR(nn.Module):
         if self.modelname=="ResNet":
             zi, zj = self.proj(hi[0]), self.proj(hj[0]) # (N, projection_dim)
             zi, zj = F.normalize(zi), F.normalize(zj)
-        elif self.modelname=="MetaFormer":
+        elif self.modelname=="Encoder":
             hi_out,hj_out  =   torch.mean(hi[1][3], dim=[2, 3]).squeeze(),torch.mean(hj[1][3], dim=[2, 3]).squeeze()
             zi, zj = self.proj(hi_out), self.proj(hj_out) # (N, projection_dim)
             zi, zj = F.normalize(zi), F.normalize(zj)

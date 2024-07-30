@@ -149,6 +149,7 @@ class Attention(nn.Module):
         x = self.proj_drop(x)
         return x
 
+"""
 class SepConv(nn.Module):
 
     def __init__(self, dim, expansion_ratio=2,act1_layer=StarReLU,act2_layer=nn.Identity,bias=False,kernel_size=7,padding=3,**kwargs, ):
@@ -176,7 +177,37 @@ class SepConv(nn.Module):
         x = self.act2(x)
         x = self.pwconv2(x)
         return x
+"""
 
+
+class SepConv(nn.Module):  #(convnext)
+    def __init__(self, dim, drop=0.):
+        super().__init__()
+
+        self.dwconv = nn.Conv2d(dim, dim, kernel_size=3, padding='same',groups=dim) # depthwise conv
+ 
+        self.norm = nn.LayerNorm(dim, eps=1e-6)
+        self.pwconv1 = nn.Linear(dim, 4 * dim) # pointwise/1x1 convs, implemented with linear layers
+        self.act = nn.GELU()
+        self.norm1 = nn.LayerNorm(4*dim, eps=1e-6)
+        self.pwconv2 = nn.Linear(4 * dim, dim)
+        self.drop_path = DropPath(drop) if drop > 0. else nn.Identity()
+
+    def forward(self, x):
+        
+        x = x.permute(0, 3, 1, 2) # (N, C, H, W) -> (N, H, W, C)
+        x = self.dwconv(x)#self.dwconv2(x)+self.dwconv3(x)
+        x = x.permute(0, 2, 3, 1)
+        x = self.norm(x)
+        x = self.pwconv1(x)
+        x = self.act(x)
+        x = self.norm1(x)
+        x = self.pwconv2(x)
+        x = self.drop_path(x)
+        return x
+
+
+        
 class upsampling(nn.Module):
 
     def __init__(self, in_channels, out_channels, 
@@ -187,16 +218,16 @@ class upsampling(nn.Module):
         self.pre_permute = pre_permute
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, 
                               stride=stride, padding=padding)
-        
+        self.act= nn.GELU()
         self.up   = nn.Upsample(scale_factor=2, mode='nearest')
         
         self.post_norm = post_norm(out_channels) if post_norm else nn.Identity()
 
     def forward(self, x):
+        x= self.pre_norm(x)
         x = self.conv(x.permute(0, 3, 1, 2))
+        x = self.act(x)
         x = self.up(x)
-        x = self.post_norm(x.permute(0,2,3,1)).permute(0, 3, 1, 2)
-        
         return x
 
 class Scale(nn.Module):
@@ -271,25 +302,27 @@ class ConvBlock(nn.Module):
     """
     def __init__(self, dim, drop=0.):
         super().__init__()
-        self.dwconv = nn.Conv2d(dim, dim, kernel_size=3, padding='same', groups=dim) # depthwise conv
 
+        self.dwconv = nn.Conv2d(dim, dim, kernel_size=3, padding='same',groups=dim) # depthwise conv
+ 
         self.norm = nn.LayerNorm(dim, eps=1e-6)
         self.pwconv1 = nn.Linear(dim, 4 * dim) # pointwise/1x1 convs, implemented with linear layers
         self.act = nn.GELU()
+        self.norm1 = nn.LayerNorm(4*dim, eps=1e-6)
         self.pwconv2 = nn.Linear(4 * dim, dim)
         self.drop_path = DropPath(drop) if drop > 0. else nn.Identity()
 
     def forward(self, x):
         
-        input = x
         x = x.permute(0, 3, 1, 2) # (N, C, H, W) -> (N, H, W, C)
         x = self.dwconv(x)#self.dwconv2(x)+self.dwconv3(x)
         x = x.permute(0, 2, 3, 1)
         x = self.norm(x)
         x = self.pwconv1(x)
         x = self.act(x)
+        x = self.norm1(x)
         x = self.pwconv2(x)
-        x = self.norm(input) + self.drop_path(x)
+        x = self.drop_path(x)
         return x
 
 
@@ -434,7 +467,7 @@ def decoder_function(pretrained=False,**kwargs):
     model = Decoder(
         depths=[1,1,1,1],
         dims=[512, 320, 128, 64],
-        token_mixers=[Attention,Attention,Attention, Attention],
+        token_mixers=[Attention,Attention,SepConv, SepConv],
         **kwargs)
     
 

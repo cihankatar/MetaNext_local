@@ -27,15 +27,16 @@ from models.CA_Convnext import CA_Convnext
 from models.CA_CBA_Unet import CA_CBA_UNET
 from models.CA_Unet import CA_UNET
 from models.Unet import UNET
+"""
 
 from models.CA_CBA_Proposed import CA_CBA_Proposed
-"""
 from models.Unet import UNET
 from models.CA_Proposed import CA_Proposed
-from models.Model import model_sep
+from models.Model import model_base
 from SSL.simclr import SimCLR
 from models.Metaformer import caformer_s18_in21ft1k
 from models.resnet import resnet_v1
+
 
 def load_config(config_name):
     with open(config_name) as file:
@@ -106,11 +107,11 @@ def main():
     
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model                       = model_sep(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model                       = model_base(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":
-            if args.sslmode_modelname=="simclr_caformer":    
+            if args.sslmode_modelname=="simclr_encoder":    
                 pretrained_encoder          = caformer_s18_in21ft1k(config_res,args.mode,args.imnetpr).to(device)
             elif args.sslmode_modelname == "simclr_resnet":
                 pretrained_encoder          = resnet_v1((3,256,256),50,1,config_res,args.mode,args.imnetpr).to(device)
@@ -124,7 +125,7 @@ def main():
             checkpoint_path = ML_DATA_OUTPUT+str(modelname)+"["+str(res)+"]"
 
             if args.sslmode_modelname=="simclr_caformer":
-                model_to_save   = model.metaformer
+                model_to_save   = model.encoder
 
             elif args.sslmode_modelname == "simclr_resnet":
                 model_to_save   = model.resnet
@@ -148,6 +149,7 @@ def main():
     loss_function               = Dice_CE_Loss()
     scheduler                   = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, config['epochs'], eta_min=config['learningrate']/10, last_epoch=-1)
     
+
     for epoch in trange(config['epochs'], desc="Training"):
 
         epoch_loss = 0.0

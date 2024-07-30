@@ -26,8 +26,9 @@ from models.CA_Proposed import CA_Proposed
 """
 from models.Unet import UNET
 from models.CA_CBA_Proposed import CA_CBA_Proposed
+from models.CA_Proposed import CA_Proposed
 
-from models.Model import model_n3
+from models.Model import model_base
 from SSL.simclr import SimCLR
 from models.Metaformer import caformer_s18_in21ft1k
 from models.resnet import resnet_v1
@@ -66,7 +67,7 @@ if __name__ == "__main__":
     
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model                       = CA_CBA_Proposed(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model                       = CA_Proposed(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":

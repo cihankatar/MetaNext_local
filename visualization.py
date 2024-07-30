@@ -37,7 +37,7 @@ def test_image(im_test, prediction, labels):
 def supervised(images,labels):
     import matplotlib.pyplot as plt
 
-    which_image=np.random.randint(7)
+    which_image=np.random.randint(5)
     image=images[which_image].permute(2,1,0)
     label=labels[which_image].permute(2,1,0)
     plt.figure()

@@ -118,7 +118,7 @@ class Bottleneck(nn.Module):
         return out
 #####   MODEL #####
     
-class model_sep(nn.Module):
+class model_base(nn.Module):
     def __init__(self,n_classes,config_res=None,training_mode=None,imnetpretrained=None):
         super().__init__()
         

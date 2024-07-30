@@ -122,25 +122,27 @@ class SepConv(nn.Module):
     """
     def __init__(self, dim, drop=0.):
         super().__init__()
+
         self.dwconv = nn.Conv2d(dim, dim, kernel_size=3, padding='same',groups=dim) # depthwise conv
-        self.norm   = nn.LayerNorm(dim, eps=1e-6)
+ 
+        self.norm = nn.LayerNorm(dim, eps=1e-6)
         self.pwconv1 = nn.Linear(dim, 4 * dim) # pointwise/1x1 convs, implemented with linear layers
-        self.act    = nn.GELU()
+        self.act = nn.GELU()
         self.pwconv2 = nn.Linear(4 * dim, dim)
         self.drop_path = DropPath(drop) if drop > 0. else nn.Identity()
 
     def forward(self, x):
         
-        input = x
         x = x.permute(0, 3, 1, 2) # (N, C, H, W) -> (N, H, W, C)
         x = self.dwconv(x)#self.dwconv2(x)+self.dwconv3(x)
         x = x.permute(0, 2, 3, 1)
         x = self.norm(x)
-        x = self.act(x)
         x = self.pwconv1(x)
         x = self.act(x)
         x = self.pwconv2(x)
+        x = self.drop_path(x)
         return x
+
 
 class Downsampling(nn.Module):
     """
@@ -206,9 +208,7 @@ class EncoderBlock(nn.Module):
         self.token_mixer    = token_mixer(dim=dim, drop=drop)
         self.drop_path1     = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.layer_scale1   = Scale(dim=dim, init_value=layer_scale_init_value) if layer_scale_init_value else nn.Identity()
-        
         self.res_scale1     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
-
         self.norm2          = norm_layer(dim)
         #if self.token_mixer.__class__.__name__=='Attention':
         self.Cblock         = cblock(dim=dim, drop=0)
@@ -317,7 +317,7 @@ class Encoder(nn.Module):
 def encoder_function(config_res,training_mode=None,pretrained=False,**kwargs):
 
     model = Encoder(
-        depths=[1,1,1,1],
+        depths=[2,2,6,2],
         dims=[64, 128, 256, 512],
         token_mixers=[SepConv, SepConv, Attention, Attention],
         **kwargs)

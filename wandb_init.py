@@ -12,7 +12,7 @@ def config_func(training_mode):
         configs={
         "mode"              :"ssl",
         "sslmode_modelname" :"simclr_caformer",
-        "imnetpr"           :True,
+        "imnetpr"           :False,
         "bsize"             :50,
         "epochs"            :150,
         "imsize"            :256,
