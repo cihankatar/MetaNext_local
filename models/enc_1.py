@@ -49,6 +49,31 @@ class LayerNormWithoutBias(nn.Module):
         return F.layer_norm(x, self.normalized_shape, weight=self.weight, bias=self.bias, eps=self.eps)
 
 
+class Mlp(nn.Module):
+    """ MLP as used in MetaFormer models, eg Transformer, MLP-Mixer, PoolFormer, MetaFormer baslines and related networks.
+    Mostly copied from timm.
+    """
+    def __init__(self, dim, mlp_ratio=4, out_features=None, act_layer=nn.GELU, drop=0., bias=False, **kwargs):
+        super().__init__()
+        in_features = dim
+        out_features = out_features or in_features
+        hidden_features = int(mlp_ratio * in_features)
+        drop_probs = (drop,drop)
+
+        self.fc1 = nn.Linear(in_features, hidden_features, bias=bias)
+        self.act = act_layer()
+        self.drop1 = nn.Dropout(drop_probs[0])
+        self.fc2 = nn.Linear(hidden_features, out_features, bias=bias)
+        self.drop2 = nn.Dropout(drop_probs[1])
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.act(x)
+        x = self.drop1(x)
+        x = self.fc2(x)
+        x = self.drop2(x)
+        return x
+
 
 class Attention(nn.Module):
     """
@@ -78,6 +103,7 @@ class Attention(nn.Module):
     def forward(self, x):
         B, H, W, C = x.shape
         N = H * W
+        
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)   # make torchscript happy (cannot use tensor as tuple)
 
@@ -95,10 +121,16 @@ class SepConv(nn.Module):
     """ 
 
     """
-    def __init__(self, dim, drop=0.):
+    def __init__(self, dim,spsize, drop=0.):
         super().__init__()
-        self.dwconv = nn.Conv2d(dim, dim, kernel_size=7, padding='same', groups=dim) # depthwise conv
 
+        self.dwconv = nn.Conv2d(dim, dim, kernel_size=3, padding='same',groups=dim) # depthwise conv
+        self.dwconv1 = nn.Conv2d(dim, dim, kernel_size=3, padding='same',groups=dim,dilation=3) # depthwise conv
+        self.dwconv2 = nn.Conv2d(dim, dim, kernel_size=3, padding='same',groups=dim,dilation=6) # depthwise conv
+
+
+        self.pwconv = nn.Linear(spsize, dim) # pointwise/1x1 convs, implemented with linear layers
+        
         self.norm = nn.LayerNorm(dim, eps=1e-6)
         self.pwconv1 = nn.Linear(dim, 4 * dim) # pointwise/1x1 convs, implemented with linear layers
         self.act = nn.GELU()
@@ -107,15 +139,32 @@ class SepConv(nn.Module):
 
     def forward(self, x):
         
-        input = x
         x = x.permute(0, 3, 1, 2) # (N, C, H, W) -> (N, H, W, C)
         x = self.dwconv(x)#self.dwconv2(x)+self.dwconv3(x)
         x = x.permute(0, 2, 3, 1)
         x = self.norm(x)
-        x = self.pwconv1(x)
-        x = self.act(x)
-        x = self.pwconv2(x)
-        return x
+
+        x1 = x.permute(0, 3, 1, 2) # (N, C, H, W) -> (N, H, W, C)
+        x1 = self.dwconv1(x1)#self.dwconv2(x)+self.dwconv3(x)
+        x1 = x1.permute(0, 2, 3, 1)
+        x1 = self.norm(x1)
+
+        x2 = x1.permute(0, 3, 1, 2) # (N, C, H, W) -> (N, H, W, C)
+        x2 = self.dwconv2(x2)#self.dwconv2(x)+self.dwconv3(x)
+        x2 = x2.permute(0, 2, 3, 1)
+        x2 = self.norm(x2)
+        x2 = self.act(x2)
+
+        matmul=(x@x2.transpose(-2, -1) ).softmax(dim=-1)
+        out = self.pwconv(matmul)
+        out = self.act(out)
+
+        out = self.pwconv1(out)
+        out = self.act(out)
+        out = self.pwconv2(out)
+        out = self.drop_path(out)
+        return out
+
 
 class Downsampling(nn.Module):
     """
@@ -127,10 +176,9 @@ class Downsampling(nn.Module):
         super().__init__()
         self.pre_norm = pre_norm(in_channels) if pre_norm else nn.Identity()
         self.pre_permute = pre_permute
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding)
-        
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=1, padding=padding)
         #self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding='same')
-        #self.down = nn.MaxPool2d(2,2)
+        self.down = nn.MaxPool2d(2,2)
         self.act= nn.GELU()
 
     def forward(self, x):
@@ -140,7 +188,7 @@ class Downsampling(nn.Module):
             x = x.permute(0, 3, 1, 2)
         x = self.conv(x)
         x = self.act(x)
-        #x= self.down(x)
+        x= self.down(x)
         x = x.permute(0, 2, 3, 1) # [B, C, H, W] -> [B, H, W, C]
         return x
 
@@ -156,8 +204,6 @@ class Scale(nn.Module):
         return x * self.scale
         
 
-
-
 DOWNSAMPLE_LAYERS_FOUR_STAGES = [partial(Downsampling,
             kernel_size=3, stride=2, padding=1,
             )] + \
@@ -170,7 +216,7 @@ class EncoderBlock(nn.Module):
     """
     Implementation of one MetaFormer block.
     """
-    def __init__(self, dim,
+    def __init__(self, dim,spsize,
                  token_mixer=nn.Identity,
                  cblock=SepConv,
                  norm_layer=nn.LayerNorm,
@@ -181,15 +227,13 @@ class EncoderBlock(nn.Module):
         super().__init__()
 
         self.norm1          = norm_layer(dim)
-        self.token_mixer    = token_mixer(dim=dim, drop=drop)
+        self.token_mixer    = token_mixer(dim=dim,spsize=spsize, drop=drop)
         self.drop_path1     = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.layer_scale1   = Scale(dim=dim, init_value=layer_scale_init_value) if layer_scale_init_value else nn.Identity()
-        
         self.res_scale1     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
-
         self.norm2          = norm_layer(dim)
         #if self.token_mixer.__class__.__name__=='Attention':
-        self.Cblock         = cblock(dim=dim, drop=0)
+        self.Cblock         = cblock(dim=dim, spsize=spsize, drop=0)
 
         self.drop_path2     = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
@@ -197,18 +241,24 @@ class EncoderBlock(nn.Module):
         self.res_scale2     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
         
     def forward(self, x):
-        x = self.res_scale1(x) + self.layer_scale1(self.drop_path1(self.token_mixer(self.norm1(x))))
-        #if self.token_mixer.__class__.__name__=='Attention':
-        x = self.res_scale2(x) + self.layer_scale2(self.drop_path2(self.Cblock(self.norm2(x))))
 
-        return x
+
+        if self.token_mixer.__class__.__name__=='Attention':
+            x1 = self.res_scale1(x) + self.layer_scale1(self.drop_path1(self.token_mixer(self.norm1(x))))
+            x2= self.res_scale2(x) + self.layer_scale2(self.drop_path2(self.Cblock(self.norm2(x))))
+            out=x1+x2
+        else:
+            x = self.res_scale1(x) + self.layer_scale1(self.drop_path1(self.token_mixer(self.norm1(x))))
+            out = self.res_scale2(x) + self.layer_scale2(self.drop_path2(self.Cblock(self.norm2(x))))
+            
+        return out
     
-
 class Encoder(nn.Module):
 
     def __init__(self, in_chans=3,  
-                 depths=[2, 2, 6, 2],
+                 depths=[2,2,6,2],
                  dims=[64, 128, 256, 512],
+                 spsize=[128,64,32,16],
                  downsample_layers=DOWNSAMPLE_LAYERS_FOUR_STAGES,
                  token_mixers=nn.Identity,
 
@@ -225,7 +275,7 @@ class Encoder(nn.Module):
             depths = [depths] # it means the model has only one stage
         if not isinstance(dims, (list, tuple)):
             dims = [dims]
-
+        
         num_stage      = len(depths)
         self.num_stage = num_stage
 
@@ -254,7 +304,7 @@ class Encoder(nn.Module):
 
         for i in range(num_stage):
             stage = nn.Sequential(
-                *[EncoderBlock(  dim=dims[i],
+                *[EncoderBlock(  dim=dims[i],spsize=spsize[i],
                                     token_mixer=token_mixers[i],
                                     norm_layer=norm_layers[i],
                                     drop_path=dp_rates[cur + j],
@@ -297,7 +347,7 @@ def encoder_function(config_res,training_mode=None,pretrained=False,**kwargs):
     model = Encoder(
         depths=[1,1,1,1],
         dims=[64, 128, 256, 512],
-        token_mixers=[SepConv, SepConv, SepConv, SepConv],
+        token_mixers=[SepConv, SepConv, Attention, Attention],
         **kwargs)
     
 

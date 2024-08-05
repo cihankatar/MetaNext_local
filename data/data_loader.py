@@ -1,4 +1,5 @@
 from torch.utils.data import DataLoader
+
 from data.Custom_Dataset import dataset
 from utils.Test_Train_Split import ssl_data_split
 from glob import glob
@@ -43,10 +44,10 @@ def data_transform(mode,task,train,image_size):
                                         v2.RandomHorizontalFlip(p=0.5),
                                         v2.RandomVerticalFlip(p=0.5),
                                         v2.RandomRotation(degrees=(0, 90)),
+                                        #v2.RandomAdjustSharpness(sharpness_factor=10, p=0.),
+                                        #v2.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1)
                                         #v2.RandomPerspective(distortion_scale=0.5, p=0.5),
                                         #v2.RandomAffine(degrees=(30, 70), translate=(0.1, 0.3), scale=(0.75, 0.75)),
-                                        #v2.ColorJitter(0.4, 0.4, 0.4, 0.1),
-
                                         #v2.RandomPhotometricDistort(p=0.3),
                                         #v2.Normalize(mean=(0.400, 0.485, 0.456, 0.406), std=(0,222, 0.229, 0.224, 0.225))                              
                                     ])
@@ -124,14 +125,13 @@ def loader(mode,sslmode,train,batch_size,num_workers,image_size,cutout_pr,cutout
 
     else:
         data_test   = dataset(test_im_path, test_mask_path,cutout_pr,cutout_box, aug, transformations,mode)
-    
 
     if train:
         train_loader = DataLoader(
             dataset     = data_train,
             batch_size  = batch_size,
             shuffle     = shuffle,
-            num_workers = num_workers
+            num_workers = num_workers,
             )
         return train_loader
     
@@ -140,10 +140,10 @@ def loader(mode,sslmode,train,batch_size,num_workers,image_size,cutout_pr,cutout
             dataset     = data_test,
             batch_size  = batch_size,
             shuffle     = shuffle,
-            num_workers = num_workers
+            num_workers = num_workers,
         )
     
-        return test_loader
+    return test_loader
 
 
 

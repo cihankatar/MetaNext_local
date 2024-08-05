@@ -28,7 +28,7 @@ from models.Unet import UNET
 from models.CA_CBA_Proposed import CA_CBA_Proposed
 from models.CA_Proposed import CA_Proposed
 
-from models.Model import model_base
+from models.Model import model_new
 from SSL.simclr import SimCLR
 from models.Metaformer import caformer_s18_in21ft1k
 from models.resnet import resnet_v1
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model                       = CA_Proposed(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model                       = model_new (config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":
@@ -109,7 +109,7 @@ if __name__ == "__main__":
             model.load_state_dict(torch.load(checkpoint_path, map_location=torch.device('cpu')))
     except:
         raise Exception("******* No Checkpoint Path  *********")
-
+    
     metrics_score = [ 0.0, 0.0, 0.0, 0.0, 0.0]
     model.eval()
 

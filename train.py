@@ -32,11 +32,12 @@ from models.Unet import UNET
 from models.CA_CBA_Proposed import CA_CBA_Proposed
 from models.Unet import UNET
 from models.CA_Proposed import CA_Proposed
-from models.Model import model_base
+from models.Model import model_new
 from SSL.simclr import SimCLR
 from models.Metaformer import caformer_s18_in21ft1k
 from models.resnet import resnet_v1
-
+from ptflops import get_model_complexity_info
+import re
 
 def load_config(config_name):
     with open(config_name) as file:
@@ -50,7 +51,8 @@ def using_device():
 
 def main():
 
-    data='kvasir_1'
+
+    data='isic_1'
     training_mode="supervised"
     train=True
 
@@ -76,6 +78,8 @@ def main():
     #config        = load_config("config.yaml")
 
     device          = using_device()
+
+
     train_loader    = loader(
                             args.mode,
                             args.sslmode_modelname,
@@ -107,7 +111,7 @@ def main():
     
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model                       = model_base(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model                       = model_new(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":
@@ -150,6 +154,19 @@ def main():
     scheduler                   = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, config['epochs'], eta_min=config['learningrate']/10, last_epoch=-1)
     
 
+
+    macs, params = get_model_complexity_info(model, (3, 256, 256), as_strings=True,
+    print_per_layer_stat=True, verbose=True)
+    # Extract the numerical value
+    flops = eval(re.findall(r'([\d.]+)', macs)[0])*2
+    # Extract the unit
+    flops_unit = re.findall(r'([A-Za-z]+)', macs)[0][0]
+
+    print('Computational complexity: {:<8}'.format(macs))
+    print('Computational complexity: {} {}Flops'.format(flops, flops_unit))
+    print('Number of parameters: {:<8}'.format(params))
+
+    
     for epoch in trange(config['epochs'], desc="Training"):
 
         epoch_loss = 0.0
@@ -212,6 +229,8 @@ def main():
         wandb.log(e_loss)
 
         print(f"Epoch {epoch + 1}/{config['epochs']}, Epoch loss for Model : {model.__class__.__name__} : {e_loss['epoch_loss']:.4f}")
+        
+        
 
 
         valid_loss = 0.0

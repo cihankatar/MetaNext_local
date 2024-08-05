@@ -52,7 +52,6 @@ class Attention(nn.Module):
         x = self.proj_drop(x)
         return x
 
-
 class upsampling(nn.Module):
 
     def __init__(self, in_channels, out_channels, 
@@ -139,16 +138,19 @@ UPSAMPLE_LAYERS_FOUR_STAGES =[partial(upsampling,
 
 
 class SepConv(nn.Module):
-    """ ConvNeXtV2 Block.
-    
-    Args:
-        dim (int): Number of input channels.
-        drop_path (float): Stochastic depth rate. Default: 0.0
-    """
-    def __init__(self, dim, drop=0.):
-        super().__init__()
-        self.dwconv = nn.Conv2d(dim, dim, kernel_size=3, padding='same', groups=dim) # depthwise conv
+    """ 
 
+    """
+    def __init__(self, dim,spsize, drop=0.):
+        super().__init__()
+
+        self.dwconv = nn.Conv2d(dim, dim, kernel_size=3, padding='same',groups=dim) # depthwise conv
+        self.dwconv1 = nn.Conv2d(dim, dim, kernel_size=3, padding='same',groups=dim,dilation=3) # depthwise conv
+        self.dwconv2 = nn.Conv2d(dim, dim, kernel_size=3, padding='same',groups=dim,dilation=6) # depthwise conv
+
+
+        self.pwconv = nn.Linear(spsize, dim) # pointwise/1x1 convs, implemented with linear layers
+        
         self.norm = nn.LayerNorm(dim, eps=1e-6)
         self.pwconv1 = nn.Linear(dim, 4 * dim) # pointwise/1x1 convs, implemented with linear layers
         self.act = nn.GELU()
@@ -157,23 +159,38 @@ class SepConv(nn.Module):
 
     def forward(self, x):
         
-        input = x
         x = x.permute(0, 3, 1, 2) # (N, C, H, W) -> (N, H, W, C)
         x = self.dwconv(x)#self.dwconv2(x)+self.dwconv3(x)
         x = x.permute(0, 2, 3, 1)
         x = self.norm(x)
-        x = self.pwconv1(x)
-        x = self.act(x)
-        x = self.pwconv2(x)
-        return x
 
+        x1 = x.permute(0, 3, 1, 2) # (N, C, H, W) -> (N, H, W, C)
+        x1 = self.dwconv1(x1)#self.dwconv2(x)+self.dwconv3(x)
+        x1 = x1.permute(0, 2, 3, 1)
+        x1 = self.norm(x1)
+
+        x2 = x1.permute(0, 3, 1, 2) # (N, C, H, W) -> (N, H, W, C)
+        x2 = self.dwconv2(x2)#self.dwconv2(x)+self.dwconv3(x)
+        x2 = x2.permute(0, 2, 3, 1)
+        x2 = self.norm(x2)
+        x2 = self.act(x2)
+
+        matmul=(x@x2.transpose(-2, -1) ).softmax(dim=-1)
+        out = self.pwconv(matmul)
+        out = self.act(out)
+
+        out = self.pwconv1(out)
+        out = self.act(out)
+        out = self.pwconv2(out)
+        out = self.drop_path(out)
+        return out
 
 
 class DecoderBlocks(nn.Module):
     """
     Implementation of one MetaFormer block.
     """
-    def __init__(self, dim,
+    def __init__(self, dim,spsize,
                  token_mixer=nn.Identity,
                  cblock=SepConv,
                  norm_layer=nn.LayerNorm,
@@ -184,32 +201,37 @@ class DecoderBlocks(nn.Module):
         super().__init__()
 
         self.norm1          = norm_layer(dim)
-        self.token_mixer    = token_mixer(dim=dim, drop=drop)
+        self.token_mixer    = token_mixer(dim=dim,spsize=spsize, drop=drop)
         self.drop_path1     = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.layer_scale1   = Scale(dim=dim, init_value=layer_scale_init_value) if layer_scale_init_value else nn.Identity()
-        
         self.res_scale1     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
-
         self.norm2          = norm_layer(dim)
-        self.drop_path2     = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         #if self.token_mixer.__class__.__name__=='Attention':
-        self.Cblock         = cblock(dim=dim, drop=0)
+        self.Cblock         = cblock(dim=dim, spsize=spsize, drop=0)
+
+        self.drop_path2     = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
         self.layer_scale2   = Scale(dim=dim, init_value=layer_scale_init_value) if layer_scale_init_value else nn.Identity()
         self.res_scale2     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
         
     def forward(self, x):
-        x = self.res_scale1(x) + self.layer_scale1(self.drop_path1(self.token_mixer(self.norm1(x))))
-        #if self.token_mixer.__class__.__name__=='Attention':
-        x = self.res_scale2(x) + self.layer_scale2(self.drop_path2(self.Cblock(self.norm2(x))))
 
-        return x
+        if self.token_mixer.__class__.__name__=='Attention':
+            x1 = self.res_scale1(x) + self.layer_scale1(self.drop_path1(self.token_mixer(self.norm1(x))))
+            x2= self.res_scale2(x) + self.layer_scale2(self.drop_path2(self.Cblock(self.norm2(x))))
+            out=x1+x2
+        else:
+            x = self.res_scale1(x) + self.layer_scale1(self.drop_path1(self.token_mixer(self.norm1(x))))
+            out = self.res_scale2(x) + self.layer_scale2(self.drop_path2(self.Cblock(self.norm2(x))))
+            
+        return out
 
 class Decoder(nn.Module):
 
     def __init__(self, num_classes=1000, 
-                 depths=[2, 2, 6, 2],
-                 dims=[64, 128, 320, 512],
+                 depths=[1,1,1,1],
+                 dims=[512,256,128,64],
+                 spsize=[16,32,64,128],
                  up_layers=UPSAMPLE_LAYERS_FOUR_STAGES,
                  token_mixers=nn.Identity,
                  norm_layers=partial(LayerNormWithoutBias, eps=1e-6), # partial(LayerNormGeneral, eps=1e-6, bias=False),
@@ -257,7 +279,7 @@ class Decoder(nn.Module):
 
         for i in range(num_stage):
             stage = nn.Sequential(
-                *[DecoderBlocks(  dim=dims[i],
+                *[DecoderBlocks(  dim=dims[i],spsize=spsize[i],
                                     token_mixer=token_mixers[i],
                                     norm_layer=norm_layers[i],
                                     drop_path=dp_rates[cur + j],
@@ -289,9 +311,10 @@ class Decoder(nn.Module):
     def get_features(self, x, s):
 
         for i in range(self.num_stage):
-            x = self.up_layers[i](x)
+
             x = self.stages[i](x.permute(0, 2, 3, 1))
-            
+            x = self.up_layers[i](x)
+
             if i <3:
                 x = s[i] + x
 
@@ -307,7 +330,7 @@ def decoder_function(pretrained=False,**kwargs):
     model = Decoder(
         depths=[1,1,1,1],
         dims=[512,256,128,64],
-        token_mixers=[SepConv, SepConv, SepConv, SepConv],
+        token_mixers=[Attention, Attention, SepConv, SepConv],
         **kwargs)
     
 
