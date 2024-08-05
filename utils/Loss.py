@@ -2,6 +2,41 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from torch_topological.nn import SignatureLoss
+from torch_topological.nn import VietorisRipsComplex
+
+class TopologicalAutoencoder(torch.nn.Module):
+    """Wrapper for a topologically-regularised autoencoder.
+
+    This class uses another autoencoder model and imbues it with an
+    additional topology-based loss term.
+    """
+    def __init__(self, model, lam=1.0):
+        super().__init__()
+
+        self.lam = lam
+        self.model = model
+        self.loss = SignatureLoss(p=2)
+
+        # TODO: Make dimensionality configurable
+        self.vr = VietorisRipsComplex(dim=0)
+
+    def forward(self, x,encoder_features):
+        z = encoder_features[3]
+        
+        x           = torch.flatten(input=x,start_dim=1,end_dim=3)
+        z           = torch.flatten(input=z,start_dim=1,end_dim=3)
+        
+        pi_x = self.vr(x)
+        pi_z = self.vr(z)
+
+
+        topo_loss = self.loss([x, pi_x], [z, pi_z])
+
+        loss = self.lam * topo_loss
+        return loss
+    
+
 class Dice_CE_Loss():
     def __init__(self):
 

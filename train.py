@@ -16,7 +16,7 @@ from tqdm import tqdm, trange
 from utils.one_hot_encode import one_hot,label_encode
 
 from data.data_loader import loader
-from utils.Loss import Dice_CE_Loss
+from utils.Loss import Dice_CE_Loss,TopologicalAutoencoder
 from augmentation.Augmentation import cutmix
 """
 from models.CA_CBA_CA import CA_CBA_CA
@@ -112,6 +112,8 @@ def main():
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
         model                       = model_new(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        topo_model = TopologicalAutoencoder(model, lam=10)
+
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":
@@ -204,7 +206,9 @@ def main():
                     features        = [f.detach() for f in features]                   
                     model_output    = model(features)
                 else:
-                    model_output    = model(images)
+                    encoder_features,model_output = model(images)
+                    
+                    topo_loss = topo_model(images,encoder_features)
 
                 if config['n_classes'] == 1:  
                     model_output    = model_output

@@ -12,6 +12,7 @@ def device_f():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return device
 
+
 #####  GLAM Module  #####
 
 
@@ -159,13 +160,13 @@ class model_new(nn.Module):
         if self.training_mode ==  "ssl_pretrained": 
             out = inputs
         else:
-            _,out = self.encoder(inputs)               # [2, 64, 64, 64]) ([2, 128, 32, 32]) [2, 320, 16, 16]) ([2, 512, 8, 8])
+            _,en_features = self.encoder(inputs)               # [2, 64, 64, 64]) ([2, 128, 32, 32]) [2, 320, 16, 16]) ([2, 512, 8, 8])
 
 
         # SKİP CONNECTİONS
         skip_connections=[]
         for i in range (3):
-             skip_connections.append(out[i])
+             skip_connections.append(en_features[i])
         skip_connections.reverse()   
 
 
@@ -177,7 +178,7 @@ class model_new(nn.Module):
 
 
         # BOTTLENECK
-        b   = self.bottleneck(out[3])                              # 1x 512 x 8x8
+        b   = self.bottleneck(en_features[3])                              # 1x 512 x 8x8
 
         # DECODER
         out = self.decoder(b,skip_connections) 
@@ -196,7 +197,7 @@ class model_new(nn.Module):
         out = self.pwconv2(out)
         out=out.permute(0, 3, 1, 2)
         
-        return out
+        return en_features,out
 
 
 if __name__ == "__main__":
