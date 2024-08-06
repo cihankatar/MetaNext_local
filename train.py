@@ -35,8 +35,8 @@ from models.Model import model_topological_out
 from SSL.simclr import SimCLR
 from models.Metaformer import caformer_s18_in21ft1k
 from models.resnet import resnet_v1
-#from ptflops import get_model_complexity_info
-#import re
+from ptflops import get_model_complexity_info
+import re
 
 def load_config(config_name):
     with open(config_name) as file:
@@ -111,7 +111,7 @@ def main():
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
         model                       = model_topological_out(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
-        topo_model = TopologicalAutoencoder(model, lam=10)
+        topo_model = TopologicalAutoencoder(model, lam=1)
 
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
@@ -156,16 +156,16 @@ def main():
     
 
 
-    #macs, params = get_model_complexity_info(model, (3, 256, 256), as_strings=True,
-    #print_per_layer_stat=True, verbose=True)
-    # Extract the numerical value
-    #flops = eval(re.findall(r'([\d.]+)', macs)[0])*2
-    # Extract the unit
-    #flops_unit = re.findall(r'([A-Za-z]+)', macs)[0][0]
+    macs, params = get_model_complexity_info(model, (3, 256, 256), as_strings=True,
+    print_per_layer_stat=True, verbose=True)
+    #Extract the numerical value
+    flops = eval(re.findall(r'([\d.]+)', macs)[0])*2
+    #Extract the unit
+    flops_unit = re.findall(r'([A-Za-z]+)', macs)[0][0]
 
-    #print('Computational complexity: {:<8}'.format(macs))
-    #print('Computational complexity: {} {}Flops'.format(flops, flops_unit))
-    #print('Number of parameters: {:<8}'.format(params))
+    print('Computational complexity: {:<8}'.format(macs))
+    print('Computational complexity: {} {}Flops'.format(flops, flops_unit))
+    print('Number of parameters: {:<8}'.format(params))
 
     
     for epoch in trange(config['epochs'], desc="Training"):
@@ -207,7 +207,7 @@ def main():
                 else:
                     _,model_output = model(images)
                     
-                    topo_loss                     = topo_model(model_output,labels)
+                    topo_loss      = topo_model(model_output,labels)
 
                 if config['n_classes'] == 1:  
                     model_output    = model_output

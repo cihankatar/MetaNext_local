@@ -11,7 +11,7 @@ class TopologicalAutoencoder(torch.nn.Module):
     This class uses another autoencoder model and imbues it with an
     additional topology-based loss term.
     """
-    def __init__(self, model, lam=1.0):
+    def __init__(self, model, lam=1.):
         super().__init__()
 
         self.lam = lam
@@ -57,11 +57,11 @@ class Dice_CE_Loss():
         return dice_loss
 
     def BCE_loss(self,input,target):
-        input           = torch.flatten(input=input)
-        target          = torch.flatten(input=target)
-        sigmoid_f       = nn.Sigmoid()
-        sigmoid_input   = sigmoid_f(input)
-        #B_Cross_Entropy = F.binary_cross_entropy(sigmoid_input,target)
+        # input           = torch.flatten(input=input)
+        # target          = torch.flatten(input=target)
+        # sigmoid_f       = nn.Sigmoid()
+        # sigmoid_input   = sigmoid_f(input)
+        # B_Cross_Entropy = F.binary_cross_entropy(sigmoid_input,target)
         entropy_with_logic = self.bcewithlogic(input,target)
         return entropy_with_logic
 
