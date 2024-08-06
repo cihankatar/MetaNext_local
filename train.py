@@ -208,7 +208,7 @@ def main():
                 else:
                     encoder_features,model_output = model(images)
                     
-                    topo_loss = topo_model(images,encoder_features)
+                    topo_loss = topo_model(images,images)
 
                 if config['n_classes'] == 1:  
                     model_output    = model_output

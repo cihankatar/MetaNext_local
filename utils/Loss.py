@@ -22,7 +22,7 @@ class TopologicalAutoencoder(torch.nn.Module):
         self.vr = VietorisRipsComplex(dim=0)
 
     def forward(self, x,encoder_features):
-        z = encoder_features[3]
+        z = encoder_features
         
         x           = torch.flatten(input=x,start_dim=1,end_dim=3)
         z           = torch.flatten(input=z,start_dim=1,end_dim=3)
