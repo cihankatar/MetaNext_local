@@ -1,7 +1,7 @@
 torch              
 torchaudio             
-torchvision              
-numpy
+torchvision==0.16.2              
+numpy==1.26.4
 tqdm
 glob2 
 pillow 
@@ -11,3 +11,5 @@ timm
 matplotlib
 wandb
 torch-topological
+ptflops
+scipy==1.11.4

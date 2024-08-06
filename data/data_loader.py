@@ -7,7 +7,6 @@ from torchvision.transforms import v2
 import os
 import numpy as np
 import torch
-from utils.Test_Train_Split import ssl_data_split
 
 
 def data_transform(mode,task,train,image_size):

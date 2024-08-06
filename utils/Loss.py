@@ -21,8 +21,8 @@ class TopologicalAutoencoder(torch.nn.Module):
         # TODO: Make dimensionality configurable
         self.vr = VietorisRipsComplex(dim=0)
 
-    def forward(self, x,encoder_features):
-        z = encoder_features
+    def forward(self, x,labels):
+        z = labels
         
         x           = torch.flatten(input=x,start_dim=1,end_dim=3)
         z           = torch.flatten(input=z,start_dim=1,end_dim=3)

@@ -28,7 +28,7 @@ from models.Unet import UNET
 from models.CA_CBA_Proposed import CA_CBA_Proposed
 from models.CA_Proposed import CA_Proposed
 
-from models.Model import model_new
+from models.Model import model_new_topological
 from SSL.simclr import SimCLR
 from models.Metaformer import caformer_s18_in21ft1k
 from models.resnet import resnet_v1
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model                       = model_new (config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model                       = model_new_topological(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":
@@ -122,7 +122,7 @@ if __name__ == "__main__":
                 _,features      = pretrained_encoder.get_features(images)
                 model_output    = model(features)
             else:
-                model_output    = model(images)
+                _,model_output    = model(images)
 
             prediction  = torch.sigmoid(model_output)
 
@@ -160,7 +160,7 @@ if __name__ == "__main__":
             model_output    = model(images)
             
         print("plotting one set of figure")
-        prediction      = torch.sigmoid(model_output)
+        _,prediction      = torch.sigmoid(model_output)
         im,pred,lab     = log_image_table(images, prediction, labels, (len(test_loader.dataset)%args.bsize)-1)
         image_table.add_data(str(model.__class__.__name__)+'_'+str(res),wandb.Image(im),wandb.Image(pred),wandb.Image(lab),acc["jaccard"])
         break

@@ -34,7 +34,7 @@ def config_func(training_mode):
         "sslmode_modelname" :None,
         "imnetpr"           :False,
         "bsize"             :8,
-        "epochs"            :600,
+        "epochs"            :250,
         "imsize"            :256,
         "lrate"             :0.0001,
         "aug"               :True,
