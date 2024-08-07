@@ -53,7 +53,7 @@ def main():
     data='isic_1'
     training_mode="supervised"
     train=True
-    topo_threshould = 200
+    topo_threshould = 150
     addtopoloss=False 
 
     if data=='isic_1':
@@ -208,7 +208,7 @@ def main():
                     train_loss    = loss_function.Dice_BCE_Loss(model_output, labels)
                     if addtopoloss:
                         topo_loss      = topo_model(model_output,labels)
-                        train_loss     = topo_loss
+                        train_loss     = train_loss+topo_loss
                     epoch_loss    += train_loss.item() 
 
             elif args.mode == "ssl":
@@ -261,14 +261,14 @@ def main():
                     loss            = loss_function.Dice_BCE_Loss(model_output, labels)
                     if addtopoloss:
                         topo_loss   = topo_model(model_output,labels)
-                        loss        = topo_loss
+                        loss        = loss+topo_loss
 
                     valid_loss     += loss.item() 
                      
             valid_epoch_loss = {"validation_loss": valid_loss/len(val_loader)}
 
             if epoch==topo_threshould+1:
-                best_valid_loss = topo_loss
+                best_valid_loss = best_valid_loss+topo_loss
                 print(f"Epoch {epoch + 1}/{config['epochs']}, new best_valid_loss : {best_valid_loss}")
 
             wandb.log(valid_epoch_loss)
