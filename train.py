@@ -178,7 +178,7 @@ def main():
             else:
                 pretrained_encoder.eval()
 
-        if epoch >= topo_threshould:
+        if epoch > topo_threshould:
             addtopoloss=True
             args.aug=False
 
