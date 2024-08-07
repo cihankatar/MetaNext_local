@@ -31,7 +31,7 @@ from models.Unet import UNET
 from models.CA_CBA_Proposed import CA_CBA_Proposed
 from models.Unet import UNET
 from models.CA_Proposed import CA_Proposed
-from models.Model import model_topological_out
+from models.Model import model_topological_subsequentloss
 from SSL.simclr import SimCLR
 from models.Metaformer import caformer_s18_in21ft1k
 from models.resnet import resnet_v1
@@ -53,7 +53,7 @@ def main():
     data='isic_1'
     training_mode="supervised"
     train=True
-    topo_threshould = 0
+    topo_threshould = 200
     addtopoloss=False 
 
     if data=='isic_1':
@@ -108,10 +108,10 @@ def main():
                             args.shuffle,
                             args.sratio,
                             data )
-    
+    args.aug = True
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model      = model_topological_out(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model      = model_topological_subsequentloss(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         topo_model = TopologicalAutoencoder(model, lam=1)
 
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
@@ -147,14 +147,11 @@ def main():
     print(f"Model  : {model.__class__.__name__+'['+str(res)+']'}, trainable params: {trainable_params}")
     print(f"training with {len(train_loader)*args.bsize} images")
     
-
-
     best_valid_loss             = float("inf")
     optimizer                   = Adam(model.parameters(), lr=config['learningrate'])
     loss_function               = Dice_CE_Loss()
     scheduler                   = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, config['epochs'], eta_min=config['learningrate']/10, last_epoch=-1)
     
-
     #macs, params = get_model_complexity_info(model, (3, 256, 256), as_strings=True,
     #print_per_layer_stat=True, verbose=True)
     # Extract the numerical value
@@ -166,7 +163,6 @@ def main():
     #print('Computational complexity: {} {}Flops'.format(flops, flops_unit))
     #print('Number of parameters: {:<8}'.format(params))
     
-
     cutout = Cutout(args.cutoutpr,args.cutoutbox)
 
     for epoch in trange(config['epochs'], desc="Training"):
@@ -212,15 +208,12 @@ def main():
                     train_loss    = loss_function.Dice_BCE_Loss(model_output, labels)
                     if addtopoloss:
                         topo_loss      = topo_model(model_output,labels)
-                        train_loss     = train_loss + topo_loss
+                        train_loss     = topo_loss
                     epoch_loss    += train_loss.item() 
-
-
 
             elif args.mode == "ssl":
                 train_loss,_        = model(images)
                 epoch_loss          += train_loss.item() 
-
 
             optimizer.zero_grad()
             train_loss.backward()
@@ -231,8 +224,8 @@ def main():
 
         e_loss = {"epoch_loss" : epoch_loss / len(train_loader)}
         
-
         wandb.log(e_loss)
+        
         if addtopoloss:
             print(f"Epoch {epoch + 1}/{config['epochs']}, Epoch loss for Model : {model.__class__.__name__} : {e_loss['epoch_loss']:.4f},topo loss: {topo_loss} ")
         else:
@@ -268,12 +261,18 @@ def main():
                     loss            = loss_function.Dice_BCE_Loss(model_output, labels)
                     if addtopoloss:
                         topo_loss   = topo_model(model_output,labels)
-                        loss        = loss + topo_loss
+                        loss        = topo_loss
 
                     valid_loss     += loss.item() 
                      
             valid_epoch_loss = {"validation_loss": valid_loss/len(val_loader)}
+
+            if epoch==topo_threshould+1:
+                best_valid_loss = topo_loss
+                print(f"Epoch {epoch + 1}/{config['epochs']}, new best_valid_loss : {best_valid_loss}")
+
             wandb.log(valid_epoch_loss)
+
 
         if valid_epoch_loss['validation_loss'] < best_valid_loss:
 
@@ -289,8 +288,10 @@ def main():
             else:
                 torch.save(model_to_save.state_dict(), checkpoint_path)   # saving supervised or ssl_pretrained supervised params with configs
 
-
-        print(f"\n Training {model.__class__.__name__}, training Loss: {e_loss['epoch_loss']:.4f}, val. Loss: {valid_epoch_loss['validation_loss']:.4f}")
+        if addtopoloss:
+            print(f"\n Training {model.__class__.__name__}, training Loss: {e_loss['epoch_loss']:.4f}, val. Loss: {valid_epoch_loss['validation_loss']:.4f}, topo_loss:{topo_loss} ")
+        else:
+            print(f"\n Training {model.__class__.__name__}, training Loss: {e_loss['epoch_loss']:.4f}, val. Loss: {valid_epoch_loss['validation_loss']:.4f}")
         
     wandb.finish()
 
