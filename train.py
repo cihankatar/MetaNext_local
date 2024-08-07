@@ -112,7 +112,7 @@ def main():
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
         model      = model_topological_subsequentloss(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
-        topo_model = TopologicalAutoencoder(model, lam=1)
+        topo_model = TopologicalAutoencoder(model, lam=0.1)
 
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
