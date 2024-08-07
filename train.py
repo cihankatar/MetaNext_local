@@ -1,22 +1,22 @@
 
-import torch
-import os
-from torch.optim import Adam
 import argparse
-import matplotlib.pyplot as plt
-
-import yaml
-import wandb
-from wandb_init  import wandb_init, parser_init
-from visualization  import *
+import os
 import time as timer
-from tqdm import tqdm, trange
-from utils.one_hot_encode import one_hot,label_encode
 
+import matplotlib.pyplot as plt
+import torch
+import wandb
+import yaml
+from torch.optim import Adam
+from tqdm import tqdm, trange
+
+from augmentation.Augmentation import Cutout, cutmix
 from data.data_loader import loader
-from utils.Loss import Dice_CE_Loss,TopologicalAutoencoder
-from augmentation.Augmentation import cutmix
-from augmentation.Augmentation import Cutout
+from utils.Loss import Dice_CE_Loss, TopologicalAutoencoder
+from utils.one_hot_encode import label_encode, one_hot
+from visualization import *
+from wandb_init import parser_init, wandb_init
+
 """
 from models.CA_CBA_CA import CA_CBA_CA
 from models.CA_CA import CA_CA
@@ -29,12 +29,13 @@ from models.Unet import UNET
 """
 
 from models.CA_CBA_Proposed import CA_CBA_Proposed
-from models.Unet import UNET
 from models.CA_Proposed import CA_Proposed
-from models.Model import model_topological_subsequentloss
-from SSL.simclr import SimCLR
 from models.Metaformer import caformer_s18_in21ft1k
+from models.Model import model_topological_subsequentloss
 from models.resnet import resnet_v1
+from models.Unet import UNET
+from SSL.simclr import SimCLR
+
 #from ptflops import get_model_complexity_info
 #import re
 
@@ -53,7 +54,7 @@ def main():
     data='isic_1'
     training_mode="supervised"
     train=True
-    topo_threshould = 150
+    topo_threshould = 4
     addtopoloss=False 
 
     if data=='isic_1':
@@ -139,13 +140,13 @@ def main():
     wandb.config.update({"Model Parameters": trainable_params})
 
 
-    print(f"model path:",res)
-    print(f"pretrained nodel path :",config_res)              
+    #print(f"model path:",res)
+    #print(f"pretrained nodel path :",config_res)              
     print('train loader transform',train_loader.dataset.tr)
     print('val loader transform',val_loader.dataset.tr)
 
     print(f"Model  : {model.__class__.__name__+'['+str(res)+']'}, trainable params: {trainable_params}")
-    print(f"training with {len(train_loader)*args.bsize} images")
+    print(f"training with {len(train_loader)*args.bsize} images~~")
     
     best_valid_loss             = float("inf")
     optimizer                   = Adam(model.parameters(), lr=config['learningrate'])
@@ -163,11 +164,16 @@ def main():
     #print('Computational complexity: {} {}Flops'.format(flops, flops_unit))
     #print('Number of parameters: {:<8}'.format(params))
     
-    cutout = Cutout(args.cutoutpr,args.cutoutbox)
+    cutout = Cutout(args.cutoutbox)
+    initialcutoutpr=args.cutoutpr 
+    initialcutmixpr=args.cutmixpr
 
     for epoch in trange(config['epochs'], desc="Training"):
 
         epoch_loss = 0.0
+        epoch_DiceBCEloss=0.0
+        epoch_topo_loss=0.0
+
         if args.mode == "ssl_pretrained":
             if finetune:
                 pretrained_encoder.train()
@@ -175,9 +181,15 @@ def main():
                 pretrained_encoder.eval()
 
         if epoch > topo_threshould:
-            addtopoloss=True
             args.aug=False
 
+        if epoch >= topo_threshould/2 and epoch <= topo_threshould:
+            addtopoloss=True
+            args.cutoutpr = initialcutoutpr - epoch/(topo_threshould*2)
+            args.cutmixpr = initialcutmixpr - epoch/(topo_threshould*2)
+            print('augmentation prabability is reducing -- ',args.cutoutpr)
+
+        
         model.train()
 
         for  batches in tqdm(train_loader, desc=f" Epoch {epoch + 1} in training", leave=False):
@@ -189,10 +201,10 @@ def main():
                 labels=[lab.to(device) for lab in labels] 
             else:
                 images,labels=images.to(device),labels.to(device)
-
+            
             if args.aug:
-                images,labels   = cutmix(images,labels,config["cutmix_pr"])
-                images,labels   = cutout(images,labels)   
+                images,labels   = cutmix(images,labels,args.cutmixpr)
+                images,labels   = cutout(images,labels,args.cutoutpr)   
                   
             if args.mode == "ssl_pretrained" or args.mode =="supervised":
 
@@ -200,39 +212,53 @@ def main():
                     _,features      = pretrained_encoder.get_features(images)
                     features        = [f.detach() for f in features]                   
                     model_output    = model(features)
-                    train_loss      = loss_function.Dice_BCE_Loss(model_output, labels)
-                    epoch_loss      += train_loss.item() 
+                    DiceBCE_loss      = loss_function.Dice_BCE_Loss(model_output, labels)
+                    epoch_loss      += DiceBCE_loss.item() 
 
                 elif args.mode =="supervised":
-                    _,model_output = model(images)
-                    train_loss    = loss_function.Dice_BCE_Loss(model_output, labels)
+                    _,model_output  = model(images)
+                    DiceBCE_loss    = loss_function.Dice_BCE_Loss(model_output, labels)
+                    
                     if addtopoloss:
-                        topo_loss      = topo_model(model_output,labels)
-                        train_loss     = train_loss+topo_loss
-                    epoch_loss    += train_loss.item() 
+                        topo_loss           = topo_model(model_output,labels)
+                        Dice_BCE_Topo_loss  = DiceBCE_loss+topo_loss
+                        epoch_loss          += Dice_BCE_Topo_loss.item() 
+                        epoch_topo_loss     += topo_loss
+                        epoch_DiceBCEloss   += DiceBCE_loss
+
+                    else:
+                        epoch_loss              += DiceBCE_loss.item() 
 
             elif args.mode == "ssl":
                 train_loss,_        = model(images)
                 epoch_loss          += train_loss.item() 
 
             optimizer.zero_grad()
-            train_loss.backward()
+            if addtopoloss:
+                Dice_BCE_Topo_loss.backward()
+            else:
+                DiceBCE_loss.backward()
             optimizer.step()
             scheduler.step()
             #end=timer.time()
             #print(end-start)
 
         e_loss = {"epoch_loss" : epoch_loss / len(train_loader)}
-        
+        epoch_topo_loss = (epoch_topo_loss / len(train_loader))
+        epoch_DiceBCEloss = (epoch_DiceBCEloss / len(train_loader))
+
+
         wandb.log(e_loss)
-        
+
         if addtopoloss:
-            print(f"Epoch {epoch + 1}/{config['epochs']}, Epoch loss for Model : {model.__class__.__name__} : {e_loss['epoch_loss']:.4f},topo loss: {topo_loss} ")
+            print(f"Epoch {epoch + 1}/{config['epochs']}, Epoch loss (BCE+DiceL+TopoL)/{len(train_loader)}: {e_loss['epoch_loss']:.4f}, DiceBCEloss: {epoch_DiceBCEloss:.4f}, topoLoss: {epoch_topo_loss:.4f} ")
         else:
-            print(f"Epoch {epoch + 1}/{config['epochs']}, Epoch loss for Model : {model.__class__.__name__} : {e_loss['epoch_loss']:.4f}")
+            print(f"Epoch {epoch + 1}/{config['epochs']}, Epoch loss (BCE+DiceL)/{len(train_loader)} : {e_loss['epoch_loss']:.4f}")
 
 
         valid_loss = 0.0
+        valid_topo_loss = 0.0
+        valid_dicebce_loss = 0.0
         model.eval()
 
         with torch.no_grad():
@@ -253,30 +279,41 @@ def main():
                 elif args.mode == "ssl_pretrained" :
                     _,features = pretrained_encoder(images)
                     model_output    = model(features)
-                    loss            = loss_function.Dice_BCE_Loss(model_output, labels)
-                    valid_loss     += loss.item() 
+                    DiceBCE_l            = loss_function.Dice_BCE_Loss(model_output, labels)
+                    valid_loss     += DiceBCE_l.item() 
 
-                else:
-                    _,model_output = model(images)
-                    loss            = loss_function.Dice_BCE_Loss(model_output, labels)
+                elif args.mode =="supervised":
+                    _,model_output       = model(images)
+                    DiceBCE_l            = loss_function.Dice_BCE_Loss(model_output, labels)
+
                     if addtopoloss:
-                        topo_loss   = topo_model(model_output,labels)
-                        loss        = loss+topo_loss
+                        topo_loss               = topo_model(model_output,labels)
+                        Dice_BCE_Topo_loss      = DiceBCE_l+topo_loss
+                        valid_loss             += Dice_BCE_Topo_loss.item() 
+                        valid_topo_loss        += topo_loss 
+                        valid_dicebce_loss     += DiceBCE_l
 
-                    valid_loss     += loss.item() 
+                    else:
+                        valid_loss     += DiceBCE_l.item() 
                      
             valid_epoch_loss = {"validation_loss": valid_loss/len(val_loader)}
+            valid_topo_loss = valid_topo_loss/len(val_loader)
+            valid_dicebce_loss =  valid_dicebce_loss/len(val_loader)
+
 
             if epoch==topo_threshould+1:
-                best_valid_loss = best_valid_loss+topo_loss
-                print(f"Epoch {epoch + 1}/{config['epochs']}, new best_valid_loss : {best_valid_loss}")
+                best_valid_loss = best_valid_loss+valid_topo_loss
+                print(f" Epoch {epoch + 1}/{config['epochs']}, set best_valid_loss (BCE+DiceL+TopoL/{len(val_loader)}): {best_valid_loss:.4f}")
 
             wandb.log(valid_epoch_loss)
 
-
+        if addtopoloss:
+            print(f" Epoch {epoch + 1}/{config['epochs']}, val. Loss (BCE+DiceL+TopoL/{len(val_loader)}): {valid_epoch_loss['validation_loss']:.4f}, DiceBCEloss: {valid_dicebce_loss:.4f},topo_validation_loss:{valid_topo_loss:.4f} ")
+        else:
+            print(f"Epoch {epoch + 1}/{config['epochs']}, val. Loss (BCE+DiceL/{len(val_loader)}): {valid_epoch_loss['validation_loss']:.4f} ")
+      
         if valid_epoch_loss['validation_loss'] < best_valid_loss:
-
-            print(f"previous val loss: {best_valid_loss}, new val loss: {valid_epoch_loss['validation_loss']:.4f} Saving checkpoint: {checkpoint_path}")
+            print(f"previous best val loss: {best_valid_loss:.4f}, new best val loss: {valid_epoch_loss['validation_loss']:.4f},  Saving checkpoint: {checkpoint_path}\n")
             best_valid_loss = valid_epoch_loss['validation_loss']
 
             if args.mode == "ssl_pretrained" or args.mode == "supervised":
@@ -287,11 +324,7 @@ def main():
                     
             else:
                 torch.save(model_to_save.state_dict(), checkpoint_path)   # saving supervised or ssl_pretrained supervised params with configs
-
-        if addtopoloss:
-            print(f"\n Training {model.__class__.__name__}, training Loss: {e_loss['epoch_loss']:.4f}, val. Loss: {valid_epoch_loss['validation_loss']:.4f}, topo_loss:{topo_loss} ")
-        else:
-            print(f"\n Training {model.__class__.__name__}, training Loss: {e_loss['epoch_loss']:.4f}, val. Loss: {valid_epoch_loss['validation_loss']:.4f}")
+  
         
     wandb.finish()
 

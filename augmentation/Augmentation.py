@@ -49,17 +49,16 @@ def cutout(img,lbl, pad_size, replace,count=1):
 
 class Cutout(torch.nn.Module):
 
-    def __init__(self, p, pad_size, replace=0):
+    def __init__(self, pad_size, replace=0):
         super().__init__()
-        self.p = p
         self.pad_size = int(pad_size)
         self.replace = replace
 
-    def forward(self, images,masks):
+    def forward(self, images,masks,p):
         B,Cim,H,W = images.shape[0],images.shape[1],images.shape[2],images.shape[3]
         B,Cmask,H,W = masks.shape[0],masks.shape[1],masks.shape[2],masks.shape[3]
 
-        if torch.rand(1) < self.p:
+        if torch.rand(1) < p:
             cutout_images = []
             lbls          = []
             for i in range(images.shape[0]):

@@ -94,7 +94,7 @@ def loader(mode,sslmode,train,batch_size,num_workers,image_size,cutout_pr,cutout
                 mask_path = os.path.join(os.environ["ML_DATA_ROOT"]+"isic_2018/train/masks", mask)
                 train_im_path.append(im_path)
                 train_mask_path.append(mask_path)
-        print(f"training with {len(train_im_path)} images")
+        print(f"training with {len(train_im_path)} images\n")
 
 
 
