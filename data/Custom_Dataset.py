@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
-from augmentation.Augmentation import Cutout
+
 
 class dataset(Dataset):
     def __init__(self,train_path,mask_path,cutout_pr,cutout_box,aug,transforms,training_type): #
@@ -14,8 +14,7 @@ class dataset(Dataset):
         self.cutout_pr=cutout_pr
         self.cutout_pad=cutout_box
         self.aug = aug
-        if self.aug:
-            self.cut = Cutout(self.cutout_pr,self.cutout_pad)
+
         self.training_type = training_type
     def __len__(self):
          return len(self.train_path)
@@ -58,10 +57,6 @@ class dataset(Dataset):
                 np.random.seed(s)
                 torch.manual_seed(s)
                 mask = self.tr(mask)
-
-                if self.aug:
-                    image,mask=self.cut(image,mask)
-                    
                 
             return image , mask
     

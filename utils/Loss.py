@@ -6,12 +6,8 @@ from torch_topological.nn import SignatureLoss
 from torch_topological.nn import VietorisRipsComplex
 
 class TopologicalAutoencoder(torch.nn.Module):
-    """Wrapper for a topologically-regularised autoencoder.
 
-    This class uses another autoencoder model and imbues it with an
-    additional topology-based loss term.
-    """
-    def __init__(self, model, lam=1.):
+    def __init__(self, model, lam=1.0):
         super().__init__()
 
         self.lam = lam
@@ -22,20 +18,20 @@ class TopologicalAutoencoder(torch.nn.Module):
         self.vr = VietorisRipsComplex(dim=0)
 
     def forward(self, x,labels):
-        z = labels
-        
-        x           = torch.flatten(input=x,start_dim=1,end_dim=3)
-        z           = torch.flatten(input=z,start_dim=1,end_dim=3)
+        output = labels
+
+        x                = torch.flatten(input=x,start_dim=1,end_dim=3)
+        output           = torch.flatten(input=output,start_dim=1,end_dim=3)
         
         pi_x = self.vr(x)
-        pi_z = self.vr(z)
+        pi_z = self.vr(output)
 
 
-        topo_loss = self.loss([x, pi_x], [z, pi_z])
+        topo_loss = self.loss([x, pi_x], [output, pi_z])
 
         loss = self.lam * topo_loss
         return loss
-    
+
 
 class Dice_CE_Loss():
     def __init__(self):
@@ -57,11 +53,11 @@ class Dice_CE_Loss():
         return dice_loss
 
     def BCE_loss(self,input,target):
-        # input           = torch.flatten(input=input)
-        # target          = torch.flatten(input=target)
-        # sigmoid_f       = nn.Sigmoid()
-        # sigmoid_input   = sigmoid_f(input)
-        # B_Cross_Entropy = F.binary_cross_entropy(sigmoid_input,target)
+        input           = torch.flatten(input=input)
+        target          = torch.flatten(input=target)
+        sigmoid_f       = nn.Sigmoid()
+        sigmoid_input   = sigmoid_f(input)
+        #B_Cross_Entropy = F.binary_cross_entropy(sigmoid_input,target)
         entropy_with_logic = self.bcewithlogic(input,target)
         return entropy_with_logic
 

@@ -16,7 +16,7 @@ from utils.one_hot_encode import one_hot,label_encode
 from data.data_loader import loader
 from utils.Loss import Dice_CE_Loss,TopologicalAutoencoder
 from augmentation.Augmentation import cutmix
-
+from augmentation.Augmentation import Cutout
 """
 from models.CA_CBA_CA import CA_CBA_CA
 from models.CA_CA import CA_CA
@@ -35,8 +35,8 @@ from models.Model import model_topological_out
 from SSL.simclr import SimCLR
 from models.Metaformer import caformer_s18_in21ft1k
 from models.resnet import resnet_v1
-from ptflops import get_model_complexity_info
-import re
+#from ptflops import get_model_complexity_info
+#import re
 
 def load_config(config_name):
     with open(config_name) as file:
@@ -50,10 +50,11 @@ def using_device():
 
 def main():
 
-
     data='isic_1'
     training_mode="supervised"
     train=True
+    topo_threshould = 0
+    addtopoloss=False 
 
     if data=='isic_1':
         foldernamepath="isic_1/"
@@ -110,7 +111,7 @@ def main():
     
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model                       = model_topological_out(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model      = model_topological_out(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         topo_model = TopologicalAutoencoder(model, lam=1)
 
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
@@ -122,7 +123,6 @@ def main():
                 pretrained_encoder          = resnet_v1((3,256,256),50,1,config_res,args.mode,args.imnetpr).to(device)
 
             finetune=False
-
 
     elif args.mode == "ssl":
             model           = SimCLR(args.mode,args.imnetpr,config['n_classes'],args.sslmode_modelname).to(device)
@@ -155,19 +155,20 @@ def main():
     scheduler                   = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, config['epochs'], eta_min=config['learningrate']/10, last_epoch=-1)
     
 
+    #macs, params = get_model_complexity_info(model, (3, 256, 256), as_strings=True,
+    #print_per_layer_stat=True, verbose=True)
+    # Extract the numerical value
+    #flops = eval(re.findall(r'([\d.]+)', macs)[0])*2
+    # Extract the unit
+    #flops_unit = re.findall(r'([A-Za-z]+)', macs)[0][0]
 
-    macs, params = get_model_complexity_info(model, (3, 256, 256), as_strings=True,
-    print_per_layer_stat=True, verbose=True)
-    #Extract the numerical value
-    flops = eval(re.findall(r'([\d.]+)', macs)[0])*2
-    #Extract the unit
-    flops_unit = re.findall(r'([A-Za-z]+)', macs)[0][0]
-
-    print('Computational complexity: {:<8}'.format(macs))
-    print('Computational complexity: {} {}Flops'.format(flops, flops_unit))
-    print('Number of parameters: {:<8}'.format(params))
-
+    #print('Computational complexity: {:<8}'.format(macs))
+    #print('Computational complexity: {} {}Flops'.format(flops, flops_unit))
+    #print('Number of parameters: {:<8}'.format(params))
     
+
+    cutout = Cutout(args.cutoutpr,args.cutoutbox)
+
     for epoch in trange(config['epochs'], desc="Training"):
 
         epoch_loss = 0.0
@@ -176,6 +177,10 @@ def main():
                 pretrained_encoder.train()
             else:
                 pretrained_encoder.eval()
+
+        if epoch >= topo_threshould:
+            addtopoloss=True
+            args.aug=False
 
         model.train()
 
@@ -189,36 +194,33 @@ def main():
             else:
                 images,labels=images.to(device),labels.to(device)
 
-
-            if config["augmentation"]:
+            if args.aug:
                 images,labels   = cutmix(images,labels,config["cutmix_pr"])
-
-
-            if args.mode == "ssl":
-                train_loss,_        = model(images)
-                epoch_loss          += train_loss.item() 
-
-            elif args.mode == "ssl_pretrained" or args.mode =="supervised":
+                images,labels   = cutout(images,labels)   
+                  
+            if args.mode == "ssl_pretrained" or args.mode =="supervised":
 
                 if args.mode == "ssl_pretrained":
                     _,features      = pretrained_encoder.get_features(images)
                     features        = [f.detach() for f in features]                   
                     model_output    = model(features)
-                else:
-                    _,model_output = model(images)
-                    
-                    topo_loss      = topo_model(model_output,labels)
-
-                if config['n_classes'] == 1:  
-                    model_output    = model_output
-                    train_loss      = loss_function.Dice_BCE_Loss(model_output, labels)+topo_loss
+                    train_loss      = loss_function.Dice_BCE_Loss(model_output, labels)
                     epoch_loss      += train_loss.item() 
 
-                else:
-                    model_output    = torch.transpose(model_output,1,3) 
-                    targets_f       = label_encode(labels) 
-                    train_loss      = loss_function.CE_loss(model_output, targets_f)
-                    epoch_loss     += train_loss.item() 
+                elif args.mode =="supervised":
+                    _,model_output = model(images)
+                    train_loss    = loss_function.Dice_BCE_Loss(model_output, labels)
+                    if addtopoloss:
+                        topo_loss      = topo_model(model_output,labels)
+                        train_loss     = train_loss + topo_loss
+                    epoch_loss    += train_loss.item() 
+
+
+
+            elif args.mode == "ssl":
+                train_loss,_        = model(images)
+                epoch_loss          += train_loss.item() 
+
 
             optimizer.zero_grad()
             train_loss.backward()
@@ -231,9 +233,11 @@ def main():
         
 
         wandb.log(e_loss)
+        if addtopoloss:
+            print(f"Epoch {epoch + 1}/{config['epochs']}, Epoch loss for Model : {model.__class__.__name__} : {e_loss['epoch_loss']:.4f},topo loss: {topo_loss} ")
+        else:
+            print(f"Epoch {epoch + 1}/{config['epochs']}, Epoch loss for Model : {model.__class__.__name__} : {e_loss['epoch_loss']:.4f}")
 
-        print(f"Epoch {epoch + 1}/{config['epochs']}, Epoch loss for Model : {model.__class__.__name__} : {e_loss['epoch_loss']:.4f}, topo loss: {topo_loss} ")
-        
 
         valid_loss = 0.0
         model.eval()
@@ -258,12 +262,14 @@ def main():
                     model_output    = model(features)
                     loss            = loss_function.Dice_BCE_Loss(model_output, labels)
                     valid_loss     += loss.item() 
+
                 else:
                     _,model_output = model(images)
-                    
-                    topo_loss                     = topo_model(model_output,labels)
+                    loss            = loss_function.Dice_BCE_Loss(model_output, labels)
+                    if addtopoloss:
+                        topo_loss   = topo_model(model_output,labels)
+                        loss        = loss + topo_loss
 
-                    loss            = loss_function.Dice_BCE_Loss(model_output, labels)+topo_loss
                     valid_loss     += loss.item() 
                      
             valid_epoch_loss = {"validation_loss": valid_loss/len(val_loader)}

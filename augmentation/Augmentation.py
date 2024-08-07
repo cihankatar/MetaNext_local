@@ -31,9 +31,6 @@ def cutmix(images,labels,pr):
     return images,labels
     
 
-
-
-
 def cutout(img,lbl, pad_size, replace,count=1):
     _, h, w = img.shape
     cutout_img = img.clone()
@@ -58,10 +55,20 @@ class Cutout(torch.nn.Module):
         self.pad_size = int(pad_size)
         self.replace = replace
 
-    def forward(self, image,lbl):
+    def forward(self, images,masks):
+        B,Cim,H,W = images.shape[0],images.shape[1],images.shape[2],images.shape[3]
+        B,Cmask,H,W = masks.shape[0],masks.shape[1],masks.shape[2],masks.shape[3]
+
         if torch.rand(1) < self.p:
-            cutout_image,lbl = cutout(image,lbl, self.pad_size, self.replace)
-            return cutout_image,lbl
+            cutout_images = []
+            lbls          = []
+            for i in range(images.shape[0]):
+                cutout_image,mask = cutout(images[i],masks[i], self.pad_size, self.replace)
+                cutout_images.append(cutout_image)
+                lbls.append(mask)
+            images = torch.concat(cutout_images,dim=0).reshape(B,Cim,H,W)
+            masks = torch.concat(lbls,dim=0).reshape(B,Cmask,H,W)
+            return images,masks
         else:
-            return image,lbl
+            return images,masks
         
