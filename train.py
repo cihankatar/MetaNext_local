@@ -54,7 +54,7 @@ def main():
     data='isic_1'
     training_mode="supervised"
     train=True
-    topo_threshould = 150
+    topo_threshould = 100
     addtopoloss=False 
 
     if data=='isic_1':
@@ -180,14 +180,15 @@ def main():
             else:
                 pretrained_encoder.eval()
 
-        if epoch > topo_threshould:
-            args.aug=False
 
         if epoch >= topo_threshould/2 and epoch <= topo_threshould:
             addtopoloss=True
             args.cutoutpr = initialcutoutpr - epoch/(topo_threshould*4)
             args.cutmixpr = initialcutmixpr - epoch/(topo_threshould*4)
             print('augmentation prabability is reducing -- ',args.cutoutpr)
+
+        if epoch > topo_threshould:
+            args.aug=False
 
         
         model.train()
