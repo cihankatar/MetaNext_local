@@ -80,8 +80,10 @@ if __name__ == "__main__":
     
     checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
     trainable_params            = sum(	p.numel() for p in model.parameters() if p.requires_grad)
+    
     #args.shuffle = False
     args.aug       = False
+    
     test_loader    = loader(
                             args.mode,
                             args.sslmode_modelname,

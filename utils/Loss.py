@@ -24,10 +24,22 @@ class Topological_Loss(torch.nn.Module):
         totalloss   = 0
 
         for i in range(predictions.shape[0]):
+
+            mask            = masks[i] > 0.5
+            mask            = np.array(mask, dtype=np.float64)
+            prediction      = predictions[i] > 0.5
+            prediction      = np.array(prediction, dtype=np.float64)
+            pi_x_           = self.vr(prediction)
+            pi_z_           = self.vr(mask)
+            prediction =torch.from_numpy(prediction)
+            mask =torch.from_numpy(mask)
+            tl              = self.loss([prediction, pi_x_], [mask, pi_z_])
+            
             pi_x      = self.vr(predictions[i])
             pi_z      = self.vr(masks[i])
             topo_loss = self.loss([predictions[i], pi_x], [masks[i], pi_z])
             totalloss +=topo_loss
+
             #barcod(masks[i],pi_x,predictions[i],pi_z)
 
         loss        = self.lam * totalloss/input.shape[0]

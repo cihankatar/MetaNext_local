@@ -70,30 +70,25 @@ def barcod(mask,maskh,predict,predicth):
     plt.subplot(1, 4, 3)
     # Plot each pair as a line, keeping index on the y-axis
     for i in range(mask.shape[0]):
-        plt.plot(mask[i], [i, i], marker='o')
+        plt.plot(mask[i], [i, i])
     # Set the y-axis limits and labels
-    plt.ylim(-0.5, len(mask) - 0.5)
-    plt.yticks(range(len(mask)), [f'Index {i}' for i in range(len(mask))])
 
     plt.xlabel('Values')
     plt.grid(True)
     plt.ylabel('Index')
-    plt.title('Barcod for mask image')
+    plt.title('mask')
     plt.show()
 
 
     plt.subplot(1, 4, 4)
     # Plot each pair as a line, keeping index on the y-axis
     for i in range(predict.shape[0]):
-        plt.plot(predict[i], [i, i], marker='o')
-    # Set the y-axis limits and labels
-    plt.ylim(-0.5, len(predict) - 0.5)
-    plt.yticks(range(len(predict)), [f'Index {i}' for i in range(len(predict))])
+        plt.plot(predict[i], [i, i])
 
     plt.xlabel('Values')
     plt.grid(True)
     plt.ylabel('Index')
-    plt.title('Barcod for prediction image')
+    plt.title('prediction')
     plt.show()
 
 
