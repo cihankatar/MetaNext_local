@@ -4,8 +4,9 @@ import torch.nn.functional as F
 
 from torch_topological.nn import SignatureLoss
 from torch_topological.nn import VietorisRipsComplex
+from visualization import *
 
-class TopologicalAutoencoder(torch.nn.Module):
+class Topological_Loss(torch.nn.Module):
 
     def __init__(self, model, lam=1.0):
         super().__init__()
@@ -18,20 +19,19 @@ class TopologicalAutoencoder(torch.nn.Module):
         self.vr = VietorisRipsComplex(dim=1)
 
     def forward(self, model_output,labels):
-        input   = self.sigmoid_f(torch.squeeze(model_output,dim=1))
-        output  = torch.squeeze(labels,dim=1)
-    
-        totalloss = 0
+        predictions = self.sigmoid_f(torch.squeeze(model_output,dim=1))
+        masks       = torch.squeeze(labels,dim=1)
+        totalloss   = 0
 
-        for i in range(input.shape[0]):
-            pi_x = self.vr(input[i])
-            pi_z = self.vr(output[i])
-            topo_loss = self.loss([input[i], pi_x], [output[i], pi_z])
+        for i in range(predictions.shape[0]):
+            pi_x      = self.vr(predictions[i])
+            pi_z      = self.vr(masks[i])
+            topo_loss = self.loss([predictions[i], pi_x], [masks[i], pi_z])
             totalloss +=topo_loss
+            #barcod(masks[i],pi_x,predictions[i],pi_z)
 
-        loss = self.lam * totalloss/8
+        loss        = self.lam * totalloss/input.shape[0]
         return loss
-
 
 
 class Dice_CE_Loss():

@@ -1,8 +1,9 @@
-
+import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 
-def test_image(images, prediction, labels,n):
+
+def testsample(images, labels,prediction,n):
     rand_idx = n #np.random.randint(batch_size)
     prediction    = prediction[rand_idx]        ## (1, 512, 512)
     prediction    = np.squeeze(prediction)     ## (512, 512)
@@ -14,39 +15,86 @@ def test_image(images, prediction, labels,n):
     im_test       = np.transpose(im_test, (2,1,0))
     im_test       = np.squeeze(im_test)     ## (512, 512)
 
-    
     label_test    = np.array(labels[rand_idx]*255,dtype=int)
     label_test    = np.transpose(label_test)
     label_test    = np.squeeze(label_test)     ## (512, 512)
 
     plt.figure()
-    
     plt.subplot(1, 3, 1)
     plt.title('test_image')
     plt.imshow(im_test) 
-    
     plt.subplot(1, 3, 2)
     plt.title('prediction')
     plt.imshow(prediction)
-
     plt.subplot(1, 3, 3)
     plt.title('label')
     plt.imshow(label_test)
 
 
-def supervised(images,labels,n):
-    import matplotlib.pyplot as plt
+def trainsample(images,labels,model_output,n):
+    sigm=nn.Sigmoid() 
 
     which_image=n
-    image=images[which_image].permute(2,1,0)
-    label=labels[which_image].permute(2,1,0)
-    plt.figure()
-    plt.subplot(1, 2, 1)
-    plt.imshow(image) 
-    plt.subplot(1, 2, 2)
-    plt.imshow(label)
+    image       = images[which_image].permute(2,1,0)
+    label       = labels[which_image].permute(2,1,0)
+    prediction  = model_output[which_image].permute(2,1,0)
+    prediction  = sigm(prediction).detach().numpy()
 
-    return image,label
+    plt.figure()
+    plt.subplot(1, 3, 1)
+    plt.title('test_image')
+    plt.imshow(image) 
+    plt.title('mask')
+    plt.subplot(1, 3, 2)
+    plt.imshow(label)
+    plt.title('prediction')
+    plt.subplot(1, 3, 3)
+    plt.imshow(prediction)
+
+def barcod(mask,maskh,predict,predicth):
+
+    plt.figure()
+    plt.subplot(1, 4, 1)
+    plt.title('mask_image')
+    plt.imshow(mask) 
+
+    plt.title('mask')
+    plt.subplot(1, 4, 2)
+    plt.title('prediction')
+    plt.imshow(predict)
+
+    # homology
+    mask     = maskh[1][1].numpy()
+    predict = predicth[1][1].numpy()
+
+    plt.subplot(1, 4, 3)
+    # Plot each pair as a line, keeping index on the y-axis
+    for i in range(mask.shape[0]):
+        plt.plot(mask[i], [i, i], marker='o')
+    # Set the y-axis limits and labels
+    plt.ylim(-0.5, len(mask) - 0.5)
+    plt.yticks(range(len(mask)), [f'Index {i}' for i in range(len(mask))])
+
+    plt.xlabel('Values')
+    plt.grid(True)
+    plt.ylabel('Index')
+    plt.title('Barcod for mask image')
+    plt.show()
+
+
+    plt.subplot(1, 4, 4)
+    # Plot each pair as a line, keeping index on the y-axis
+    for i in range(predict.shape[0]):
+        plt.plot(predict[i], [i, i], marker='o')
+    # Set the y-axis limits and labels
+    plt.ylim(-0.5, len(predict) - 0.5)
+    plt.yticks(range(len(predict)), [f'Index {i}' for i in range(len(predict))])
+
+    plt.xlabel('Values')
+    plt.grid(True)
+    plt.ylabel('Index')
+    plt.title('Barcod for prediction image')
+    plt.show()
 
 
 def simclr(images,labels):

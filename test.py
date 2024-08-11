@@ -7,10 +7,11 @@ from tqdm import tqdm, trange
 import wandb
 
 from wandb_init  import *
-from visualization  import test_image
+from visualization import *
 from utils.metrics import *
 
 from data.data_loader import loader
+from augmentation.Augmentation import Cutout, cutmix
 
 """
 from models.CA_CBA_CA import CA_CBA_CA
@@ -35,7 +36,7 @@ from models.resnet import resnet_v1
 
 from models.Metaformer import caformer_s18_in21ft1k
 from models.resnet import resnet_v1
-from utils.Loss import Dice_CE_Loss, TopologicalAutoencoder
+from utils.Loss import Dice_CE_Loss, Topological_Loss
 
 
 def using_device():
@@ -79,7 +80,7 @@ if __name__ == "__main__":
     
     checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
     trainable_params            = sum(	p.numel() for p in model.parameters() if p.requires_grad)
-    args.shuffle = False
+    #args.shuffle = False
     args.aug       = False
     test_loader    = loader(
                             args.mode,
@@ -113,11 +114,17 @@ if __name__ == "__main__":
     
     metrics_score = [ 0.0, 0.0, 0.0, 0.0, 0.0]
     model.eval()
-    topo_model = TopologicalAutoencoder(model, lam=1)
+
+
+    cutout                      = Cutout(args.cutoutbox)
+    topo_model = Topological_Loss(model, lam=1)
+
 
     for batch in tqdm(test_loader, desc=f"testing ", leave=False):
         images,labels   = batch                
-
+        if args.aug:
+            images,labels   = cutmix(images,labels,args.cutmixpr)
+            images,labels   = cutout(images,labels,args.cutoutpr)   
         with torch.no_grad():
 
             if args.mode == "ssl_pretrained":
@@ -126,8 +133,9 @@ if __name__ == "__main__":
             else:
                 _,model_output    = model(images)
 
-            prediction  = torch.sigmoid(model_output)
+            prediction          = torch.sigmoid(model_output)
             topo_loss           = topo_model(model_output,labels)
+            #topo_loss           = topo_model(a,labels)
 
             if args.noclasses>1:
                 prediction    = torch.argmax(prediction,dim=2)    #for multiclass_segmentation
@@ -163,7 +171,7 @@ if __name__ == "__main__":
             model_output    = model(images)
             
         print("plotting one set of figure")
-        _,prediction      = torch.sigmoid(model_output)
+        prediction      = torch.sigmoid(model_output)
         im,pred,lab     = log_image_table(images, prediction, labels, (len(test_loader.dataset)%args.bsize)-1)
         image_table.add_data(str(model.__class__.__name__)+'_'+str(res),wandb.Image(im),wandb.Image(pred),wandb.Image(lab),acc["jaccard"])
         break
