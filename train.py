@@ -166,7 +166,6 @@ def main():
     initialcutoutpr             = args.cutoutpr 
     initialcutmixpr             = args.cutmixpr
 
-#    args.shuffle = False
 
     for epoch in trange(config['epochs'], desc="Training"):
 
@@ -212,7 +211,7 @@ def main():
                     _,features      = pretrained_encoder.get_features(images)
                     features        = [f.detach() for f in features]                   
                     model_output    = model(features)
-                    DiceBCE_loss      = loss_function.Dice_BCE_Loss(model_output, labels)
+                    DiceBCE_loss    = loss_function.Dice_BCE_Loss(model_output, labels)
                     epoch_loss      += DiceBCE_loss.item() 
 
                 elif args.mode =="supervised":
