@@ -54,7 +54,7 @@ def main():
     data='isic_1'
     training_mode="supervised"
     train=True
-    topo_threshould = 100
+    topo_threshould = 0
     addtopoloss=False 
 
     if data=='isic_1':

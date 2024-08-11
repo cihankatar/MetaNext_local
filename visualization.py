@@ -2,15 +2,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def test_image(im_test, prediction, labels):
-    rand_idx = 1 #np.random.randint(batch_size)
-    prediction    = prediction[1]        ## (1, 512, 512)
+def test_image(images, prediction, labels,n):
+    rand_idx = n #np.random.randint(batch_size)
+    prediction    = prediction[rand_idx]        ## (1, 512, 512)
     prediction    = np.squeeze(prediction)     ## (512, 512)
-    prediction    = prediction > 0.5
-    prediction    = np.array(prediction, dtype=np.uint8)
+    # prediction    = prediction > 0.5
+    # prediction    = np.array(prediction, dtype=np.uint8)
     prediction    = np.transpose(prediction)
 
-    im_test       = np.array(im_test[rand_idx]*255,dtype=int)
+    im_test       = np.array(images[rand_idx]*255,dtype=int)
     im_test       = np.transpose(im_test, (2,1,0))
     im_test       = np.squeeze(im_test)     ## (512, 512)
 
@@ -34,10 +34,10 @@ def test_image(im_test, prediction, labels):
     plt.imshow(label_test)
 
 
-def supervised(images,labels):
+def supervised(images,labels,n):
     import matplotlib.pyplot as plt
 
-    which_image=np.random.randint(7)
+    which_image=n
     image=images[which_image].permute(2,1,0)
     label=labels[which_image].permute(2,1,0)
     plt.figure()

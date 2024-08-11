@@ -13,24 +13,25 @@ class TopologicalAutoencoder(torch.nn.Module):
         self.lam = lam
         self.model = model
         self.loss = SignatureLoss(p=2)
+        self.sigmoid_f    = nn.Sigmoid()
+        # To do :Make dimensionality configurable
+        self.vr = VietorisRipsComplex(dim=1)
 
-        # TODO: Make dimensionality configurable
-        self.vr = VietorisRipsComplex(dim=0)
+    def forward(self, model_output,labels):
+        input   = self.sigmoid_f(torch.squeeze(model_output,dim=1))
+        output  = torch.squeeze(labels,dim=1)
+    
+        totalloss = 0
 
-    def forward(self, x,labels):
-        output = labels
+        for i in range(input.shape[0]):
+            pi_x = self.vr(input[i])
+            pi_z = self.vr(output[i])
+            topo_loss = self.loss([input[i], pi_x], [output[i], pi_z])
+            totalloss +=topo_loss
 
-        x                = torch.flatten(input=x,start_dim=1,end_dim=3)
-        output           = torch.flatten(input=output,start_dim=1,end_dim=3)
-        
-        pi_x = self.vr(x)
-        pi_z = self.vr(output)
-
-
-        topo_loss = self.loss([x, pi_x], [output, pi_z])
-
-        loss = self.lam * topo_loss
+        loss = self.lam * totalloss/8
         return loss
+
 
 
 class Dice_CE_Loss():

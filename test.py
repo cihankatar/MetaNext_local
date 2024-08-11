@@ -28,13 +28,14 @@ from models.Unet import UNET
 from models.CA_CBA_Proposed import CA_CBA_Proposed
 from models.CA_Proposed import CA_Proposed
 
-from models.Model import model_topological_out 
+from models.Model import model_newdesign_last
 from SSL.simclr import SimCLR
 from models.Metaformer import caformer_s18_in21ft1k
 from models.resnet import resnet_v1
 
 from models.Metaformer import caformer_s18_in21ft1k
 from models.resnet import resnet_v1
+from utils.Loss import Dice_CE_Loss, TopologicalAutoencoder
 
 
 def using_device():
@@ -46,7 +47,7 @@ if __name__ == "__main__":
 
     device      = using_device()
 
-    data='kvasir_1'
+    data='isic_1'
     training_mode="supervised"
     train=False
 
@@ -67,7 +68,7 @@ if __name__ == "__main__":
     
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model                       = model_topological_out (config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model                       = model_newdesign_last(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":
@@ -78,7 +79,7 @@ if __name__ == "__main__":
     
     checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
     trainable_params            = sum(	p.numel() for p in model.parameters() if p.requires_grad)
-
+    args.shuffle = False
     args.aug       = False
     test_loader    = loader(
                             args.mode,
@@ -112,6 +113,7 @@ if __name__ == "__main__":
     
     metrics_score = [ 0.0, 0.0, 0.0, 0.0, 0.0]
     model.eval()
+    topo_model = TopologicalAutoencoder(model, lam=1)
 
     for batch in tqdm(test_loader, desc=f"testing ", leave=False):
         images,labels   = batch                
@@ -125,6 +127,7 @@ if __name__ == "__main__":
                 _,model_output    = model(images)
 
             prediction  = torch.sigmoid(model_output)
+            topo_loss           = topo_model(model_output,labels)
 
             if args.noclasses>1:
                 prediction    = torch.argmax(prediction,dim=2)    #for multiclass_segmentation
