@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def testsample(images, labels,prediction,n):
+def testsample(images, labels, prediction,n):
     rand_idx = n #np.random.randint(batch_size)
     prediction    = prediction[rand_idx]        ## (1, 512, 512)
     prediction    = np.squeeze(prediction)     ## (512, 512)
