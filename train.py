@@ -331,7 +331,7 @@ def main():
             else:
                 torch.save(model_to_save.state_dict(), checkpoint_path)   # saving supervised or ssl_pretrained supervised params with configs
   
-        print(f" ------------------------------------------ ")
+        print(f" ---------------------  --------------------------- ")
 
     wandb.finish()
 
