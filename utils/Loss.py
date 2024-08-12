@@ -5,46 +5,61 @@ import torch.nn.functional as F
 from torch_topological.nn import SignatureLoss
 from torch_topological.nn import VietorisRipsComplex
 from visualization import *
-
+from skimage.feature import local_binary_pattern 
+import matplotlib.pyplot as plt
+import gudhi as gd
 
 class Topological_Loss(torch.nn.Module):
 
-    def __init__(self, lam=0.5, dimension=0):
+    def __init__(self, lam=0.5, dimension=1,point_threshould=10,radius=2,n_points_rate=18,loss_norm=2,point_cut=400):
         super().__init__()
 
-        self.lam = lam
-        self.loss = SignatureLoss(p=2)
-        self.sigmoid_f    = nn.Sigmoid()
-        # To do :Make dimensionality configurable
-        self.vr = VietorisRipsComplex(dim=dimension)
+        self.lam                = lam
+        self.point_threshould   = point_threshould
+        self.radius             = radius
+        self.n_points_rate      = n_points_rate
+        self.point_cut          = point_cut
+        self.dimension          = dimension
+        self.loss_norm          = loss_norm
+
+        self.loss               = SignatureLoss(p=self.loss_norm)
+        self.sigmoid_f          = nn.Sigmoid()
+        self.vr                 = VietorisRipsComplex(dim=self.dimension)
 
     def forward(self, model_output,labels):
+
         predictions = self.sigmoid_f(torch.squeeze(model_output,dim=1))
         masks       = torch.squeeze(labels,dim=1)
+        radius      = self.radius
+        n_points    = self.n_points_rate * radius
+        METHOD      = 'uniform' 
         totalloss   = 0
-
         for i in range(predictions.shape[0]):
 
-            #mask            = torch.tensor(masks[i] > 0.5,dtype=float)
-            #prediction      = torch.tensor(predictions[i] > 0.5,dtype=float)
-            #pi_mask_        = self.vr(mask)
-            #pi_pred_        = self.vr(prediction)
-            #topo_loss       = self.loss([prediction, pi_pred_], [mask, pi_mask_])
+            p        = local_binary_pattern(predictions[i].cpu().detach().numpy(), n_points, radius, METHOD)
+            m        = local_binary_pattern(masks[i].cpu().detach().numpy(), n_points, radius, METHOD)
+
+            points_p = np.array(np.column_stack(np.where(p < self.point_threshould)),float)
+            points_m = np.array(np.column_stack(np.where(m < self.point_threshould)),float)
             
-            pi_pred      = self.vr(predictions[i])
-            pi_mask      = self.vr(masks[i])
-            topo_loss    = self.loss([predictions[i], pi_pred], [masks[i], pi_mask])
+            if not points_p.shape[0] == points_m.shape[0]:
+                random_indices = np.random.choice(points_p.shape[0], points_m.shape[0], replace=False)
+                points_p = points_p[random_indices]
+
+            points_p = torch.from_numpy(points_p)
+            points_m = torch.from_numpy(points_m)
+            
+            pi_pred      = self.vr(points_p)
+            pi_mask      = self.vr(points_m)
+            topo_loss    = self.loss([points_p, pi_pred], [points_m, pi_mask])
             totalloss   +=topo_loss
-        
-        pr  = torch.flatten(predictions,start_dim=1,end_dim=2)
-        ms  = torch.flatten(masks,start_dim=1,end_dim=2)
-        pi_pr      = self.vr(pr)
-        pi_ms      = self.vr(ms)
-        t_l = self.loss([pr, pi_pr], [ms, pi_ms])
-            #barcod(masks[i],pi_mask,predictions[i],pi_pred),barcod(mask,pi_mask_,prediction,pi_pred_)
+
+            #barcod(torch.tensor(m),pi_mask,torch.tensor(p),pi_pred,1)
+            #plt.scatter(points_m[:,0],points_m[:,1],s=1)
+            #barcod(masks[i],pi_mask,predictions[i],pi_pred,1)
+    
         loss        = self.lam * totalloss/predictions.shape[0]
         return loss
-
 
 class Dice_CE_Loss():
     def __init__(self):
