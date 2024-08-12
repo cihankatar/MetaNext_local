@@ -25,11 +25,11 @@ class Topological_Loss(torch.nn.Module):
 
         for i in range(predictions.shape[0]):
 
-            mask            = torch.tensor(masks[i] > 0.5,dtype=float)
-            prediction      = torch.tensor(predictions[i] > 0.5,dtype=float)
-            pi_mask_        = self.vr(mask)
-            pi_pred_        = self.vr(prediction)
-            topo_loss       = self.loss([prediction, pi_pred_], [mask, pi_mask_])
+            #mask            = torch.tensor(masks[i] > 0.5,dtype=float)
+            #prediction      = torch.tensor(predictions[i] > 0.5,dtype=float)
+            #pi_mask_        = self.vr(mask)
+            #pi_pred_        = self.vr(prediction)
+            #topo_loss       = self.loss([prediction, pi_pred_], [mask, pi_mask_])
             
             pi_pred      = self.vr(predictions[i])
             pi_mask      = self.vr(masks[i])
