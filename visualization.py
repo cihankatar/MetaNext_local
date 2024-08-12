@@ -51,8 +51,8 @@ def trainsample(images,labels,model_output,n):
     plt.subplot(1, 3, 3)
     plt.imshow(prediction)
 
-def barcod(mask,maskh,predict,predicth):
-
+def barcod(mask,maskh,predict,predicth,n):
+    
     plt.figure()
     plt.subplot(1, 4, 1)
     plt.title('mask_image')
@@ -64,14 +64,20 @@ def barcod(mask,maskh,predict,predicth):
     plt.imshow(predict.detach().numpy() )
 
     # homology
-    mask     = maskh[1][1].cpu().detach().numpy()
-    predict = predicth[1][1].cpu().detach().numpy()
+    x = [0, 10]
+    y = [0, 10]
+
+    # Plot the diagonal
+    
+    mask     = maskh[n][1].cpu().detach().numpy()
+    predict = predicth[n][1].cpu().detach().numpy()
 
     plt.subplot(1, 4, 3)
     # Plot each pair as a line, keeping index on the y-axis
-    for i in range(mask.shape[0]):
-        plt.plot(mask[i], [i, i],marker='o',color='black', linewidth=1, markersize=4)
+    plt.scatter(mask[:,0],mask[:,1] ,marker='o',color='black')
     # Set the y-axis limits and labels
+    plt.plot(x, y, label='Diagonal')
+
 
     plt.xlabel('Values')
     plt.grid(True)
@@ -82,8 +88,7 @@ def barcod(mask,maskh,predict,predicth):
 
     plt.subplot(1, 4, 4)
     # Plot each pair as a line, keeping index on the y-axis
-    for i in range(predict.shape[0]):
-        plt.plot(predict[i], [i, i],marker='o',color='black', linewidth=1, markersize=4)
+    plt.scatter(predict[:,0], predict[:,1],marker='o',color='black')
 
     plt.xlabel('Values')
     plt.grid(True)

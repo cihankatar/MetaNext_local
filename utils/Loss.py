@@ -33,11 +33,15 @@ class Topological_Loss(torch.nn.Module):
             
             pi_pred      = self.vr(predictions[i])
             pi_mask      = self.vr(masks[i])
-            topo_loss = self.loss([predictions[i], pi_pred], [masks[i], pi_mask])
-            totalloss +=topo_loss
-
+            topo_loss    = self.loss([predictions[i], pi_pred], [masks[i], pi_mask])
+            totalloss   +=topo_loss
+        
+        pr  = torch.flatten(predictions,start_dim=1,end_dim=2)
+        ms  = torch.flatten(masks,start_dim=1,end_dim=2)
+        pi_pr      = self.vr(pr)
+        pi_ms      = self.vr(ms)
+        t_l = self.loss([pr, pi_pr], [ms, pi_ms])
             #barcod(masks[i],pi_mask,predictions[i],pi_pred),barcod(mask,pi_mask_,prediction,pi_pred_)
-
         loss        = self.lam * totalloss/predictions.shape[0]
         return loss
 
