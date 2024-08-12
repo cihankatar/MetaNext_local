@@ -56,21 +56,21 @@ def barcod(mask,maskh,predict,predicth):
     plt.figure()
     plt.subplot(1, 4, 1)
     plt.title('mask_image')
-    plt.imshow(mask) 
+    plt.imshow(mask.detach().numpy()) 
 
     plt.title('mask')
     plt.subplot(1, 4, 2)
     plt.title('prediction')
-    plt.imshow(predict)
+    plt.imshow(predict.detach().numpy() )
 
     # homology
-    mask     = maskh[1][1].numpy()
-    predict = predicth[1][1].numpy()
+    mask     = maskh[1][1].cpu().detach().numpy()
+    predict = predicth[1][1].cpu().detach().numpy()
 
     plt.subplot(1, 4, 3)
     # Plot each pair as a line, keeping index on the y-axis
     for i in range(mask.shape[0]):
-        plt.plot(mask[i], [i, i])
+        plt.plot(mask[i], [i, i],marker='o',color='black', linewidth=1, markersize=4)
     # Set the y-axis limits and labels
 
     plt.xlabel('Values')
@@ -83,7 +83,7 @@ def barcod(mask,maskh,predict,predicth):
     plt.subplot(1, 4, 4)
     # Plot each pair as a line, keeping index on the y-axis
     for i in range(predict.shape[0]):
-        plt.plot(predict[i], [i, i])
+        plt.plot(predict[i], [i, i],marker='o',color='black', linewidth=1, markersize=4)
 
     plt.xlabel('Values')
     plt.grid(True)

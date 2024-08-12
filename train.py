@@ -17,7 +17,7 @@ from visualization import *
 from wandb_init import parser_init, wandb_init
 
 from models.Metaformer import caformer_s18_in21ft1k
-from models.Model import model_t
+from models.Model import model_t_l05_dim0
 from models.resnet import resnet_v1
 from SSL.simclr import SimCLR
 
@@ -51,34 +51,31 @@ def using_device():
 
 def main():
 
-    #### Inıtıal Configs ###
-    data='isic_1'
-    training_mode="supervised"
-    train=True
+    #### Initial Configs ###
+    data            ='kvasir_1'
+    training_mode   ="supervised"
+    train           =True
     topo_threshould = 0
-    addtopoloss=True 
-
+    addtopoloss     = True 
+    device         = using_device()
+    WANDB_DIR      = os.environ["WANDB_DIR"]
+    WANDB_API_KEY  = os.environ["WANDB_API_KEY"]
 
     if data=='isic_1':
         foldernamepath="isic_1/"
     elif data == 'kvasir_1':
         foldernamepath="kvasir_1/"
 
-    WANDB_DIR      = os.environ["WANDB_DIR"]
-    WANDB_API_KEY  = os.environ["WANDB_API_KEY"]
-
     if torch.cuda.is_available():
         ML_DATA_OUTPUT = os.environ["ML_DATA_OUTPUT"]+foldernamepath
     else:
         ML_DATA_OUTPUT = os.environ["ML_DATA_OUTPUT_LOCAL"]+foldernamepath
 
-    device                = using_device()
     args,res,config_res   = parser_init("segmetnation task","training",training_mode,train)
     res                   = ', '.join(res)
     config_res            = ', '.join(config_res)
     config                = wandb_init(WANDB_API_KEY,WANDB_DIR,args,config_res,data)
     #config               = load_config("config.yaml")
-
 
     train_loader    = loader(
                             args.mode,
@@ -114,7 +111,7 @@ def main():
     ##### Model Building based on arguments  ####
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model           = model_t(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model           = model_t_l05_dim0(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         checkpoint_path = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":
@@ -136,13 +133,6 @@ def main():
                 model_to_save   = model.resnet
 
 
-    trainable_params             = sum(	p.numel() for p in model.parameters() if p.requires_grad)
-    wandb.config.update({"Model Parameters": trainable_params})
-    print('train loader transform',train_loader.dataset.tr)
-    print('val loader transform',val_loader.dataset.tr)
-    print(f"Model  : {model.__class__.__name__+'['+str(res)+']'}, trainable params: {trainable_params}")
-    print(f"training with {len(train_loader)*args.bsize} images~~ , Saving checkpoint: {checkpoint_path}")
-
     #print(f"model path:",res)
     #print(f"pretrained nodel path :",config_res)     
     #macs, params = get_model_complexity_info(model, (3, 256, 256), as_strings=True,
@@ -159,13 +149,22 @@ def main():
     best_valid_loss             = float("inf")
     optimizer                   = Adam(model.parameters(), lr=config['learningrate'])
     loss_function               = Dice_CE_Loss()
-    TopoLoss                    = Topological_Loss(model, lam=1)
+    TopoLoss                    = Topological_Loss(lam=0.5,dimension=1).to(device)
 
     scheduler                   = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, config['epochs'], eta_min=config['learningrate']/10, last_epoch=-1)
     cutout                      = Cutout(args.cutoutbox)
     initialcutoutpr             = args.cutoutpr 
     initialcutmixpr             = args.cutmixpr
+    
+    trainable_params             = sum(	p.numel() for p in model.parameters() if p.requires_grad)
+    wandb.config.update({"Model Parameters": trainable_params})
+    print('Train loader transform',train_loader.dataset.tr)
+    print('Val loader transform',val_loader.dataset.tr)
+    print(f"Model  : {model.__class__.__name__+'['+str(res)+']'}, trainable params: {trainable_params}")
+    print(f"Training with {len(train_loader)*args.bsize} images~~ , Saving checkpoint: {checkpoint_path}")
+    print(f"Topology Loss Config: Dim - {TopoLoss.vr.dim}, lambda - {TopoLoss.lam}, Addtopoloss:{addtopoloss}, Threshould:{topo_threshould} ")
 
+    ##########  TRAINING ##########
 
     for epoch in trange(config['epochs'], desc="Training"):
 
@@ -218,7 +217,7 @@ def main():
                     _,model_output  = model(images)
                     DiceBCE_loss    = loss_function.Dice_BCE_Loss(model_output, labels)
                     if addtopoloss:
-                        topo_loss           = TopoLoss(model_output,labels)
+                        topo_loss           = TopoLoss(model_output,labels).to(device)
                         Dice_BCE_Topo_loss  = DiceBCE_loss + topo_loss
                         epoch_loss          += Dice_BCE_Topo_loss.item()
                         epoch_topo_loss     += topo_loss.item()
@@ -257,7 +256,7 @@ def main():
             print(f"-->Epoch {epoch + 1}/{config['epochs']}, Training Losses : BCE+DiceL : {e_loss['Training_L']:.4f}")
 
 
-##########  VALIDATION ##########
+    ##########  VALIDATION ##########
 
         valid_loss = 0.0
         valid_topo_loss = 0.0
@@ -291,7 +290,7 @@ def main():
                     DiceBCE_l            = loss_function.Dice_BCE_Loss(model_output, labels)
 
                     if addtopoloss:
-                        topo_loss               = TopoLoss(model_output,labels)
+                        topo_loss               = TopoLoss(model_output,labels).to(device)
                         Dice_BCE_Topo_loss      = DiceBCE_l+topo_loss
                         valid_loss             += Dice_BCE_Topo_loss.item() 
                         valid_topo_loss        += topo_loss.item() 
