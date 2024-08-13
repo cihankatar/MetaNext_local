@@ -55,16 +55,8 @@ def main():
     data            ='kvasir_1'
     training_mode   ="supervised"
     train           =True
-    
+    addtopoloss     = True
     topo_threshould = 0
-    addtopoloss     = True 
-    lam             = 0.5 
-    dimension       = 0
-    point_threshould = 10
-    radius          = 2
-    n_points_rate   = 16
-    loss_norm       = 2
-    point_cut       = 400
 
     device         = using_device()
     WANDB_DIR      = os.environ["WANDB_DIR"]
@@ -158,7 +150,7 @@ def main():
     best_valid_loss             = float("inf")
     optimizer                   = Adam(model.parameters(), lr=config['learningrate'])
     loss_function               = Dice_CE_Loss()
-    TopoLoss                    = Topological_Loss(lam=lam, dimension=dimension,point_threshould=point_threshould,radius=radius,                n_points_rate=n_points_rate,loss_norm=loss_norm,point_cut=point_cut).to(device)
+    TopoLoss                    = Topological_Loss(lam=0.5, dimension=1,).to(device)
 
     scheduler                   = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, config['epochs'], eta_min=config['learningrate']/10, last_epoch=-1)
     cutout                      = Cutout(args.cutoutbox)

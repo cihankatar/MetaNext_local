@@ -42,8 +42,8 @@ class Topological_Loss(torch.nn.Module):
             points_p = np.array(np.column_stack(np.where(p < self.point_threshould)),float)
             points_m = np.array(np.column_stack(np.where(m < self.point_threshould)),float)
             
-            if not points_p.shape[0] == points_m.shape[0]:
-                random_indices = np.random.choice(points_p.shape[0], points_m.shape[0], replace=False)
+            if not points_p.shape[0] < 400:
+                random_indices = np.random.choice(points_p.shape[0], points_m, replace=False)
                 points_p = points_p[random_indices]
 
             points_p = torch.from_numpy(points_p)
