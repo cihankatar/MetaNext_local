@@ -35,8 +35,8 @@ class Topological_Loss(torch.nn.Module):
         totalloss   = 0
         for i in range(predictions.shape[0]):
 
-            prediction = torch.tensor(prediction[i]>0.5,dtype=float)
-            mask        = torch.tensor(mask[i]>0.5,dtype=float)
+            prediction = torch.tensor(predictions[i]>0.5,dtype=float)
+            mask        = torch.tensor(masks[i]>0.5,dtype=float)
 
             p          = local_binary_pattern(prediction.cpu().detach().numpy(), n_points, radius, METHOD)
             m          = local_binary_pattern(mask.cpu().detach().numpy(), n_points, radius, METHOD)

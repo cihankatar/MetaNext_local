@@ -57,6 +57,7 @@ def main():
     train           =True
     addtopoloss     = True
     topo_threshould = 0
+    augmentation_regularization = False
 
     device         = using_device()
     WANDB_DIR      = os.environ["WANDB_DIR"]
@@ -163,8 +164,7 @@ def main():
     print('Val loader transform',val_loader.dataset.tr)
     print(f"Model  : {model.__class__.__name__+'['+str(res)+']'}, trainable params: {trainable_params}")
     print(f"Training with {len(train_loader)*args.bsize} images~~ , Saving checkpoint: {checkpoint_path}")
-    print(f"Topology Loss Config: Dim - {TopoLoss.vr.dim}, lambda - {TopoLoss.lam}, Addtopoloss:{addtopoloss}, Threshould:{topo_threshould} ")
-
+    print(f"Topology Loss Config: regularization, {augmentation_regularization}, Dim - {TopoLoss.vr.dim}, lambda - {TopoLoss.lam}, Addtopoloss:{addtopoloss}, point_threshould- {TopoLoss.point_threshould}, radius- {TopoLoss.radius},n_points_rate-{TopoLoss.n_points_rate},loss_norm-{TopoLoss.loss_norm}")
     ##########  TRAINING ##########
 #    args.shuffle = False
     for epoch in trange(config['epochs'], desc="Training"):
@@ -179,15 +179,15 @@ def main():
             else:
                 pretrained_encoder.eval()
 
-        ### Augmentation Regularizations if needed ### 
-        # if epoch >= topo_threshould/2 and epoch <= topo_threshould:
-        #     args.cutoutpr = initialcutoutpr - epoch/(topo_threshould*4)
-        #     args.cutmixpr = initialcutmixpr - epoch/(topo_threshould*4)
-        #     print('augmentation prabability is reducing -- ',args.cutoutpr)
+        if augmentation_regularization:
+            if epoch >= topo_threshould/2 and epoch <= topo_threshould:
+                args.cutoutpr = initialcutoutpr - epoch/(topo_threshould*4)
+                args.cutmixpr = initialcutmixpr - epoch/(topo_threshould*4)
+                print('augmentation prabability is reducing -- ',args.cutoutpr)
 
-        # if epoch > topo_threshould:
-        #     args.aug=False
-   
+            if epoch > topo_threshould:
+                args.aug=False
+    
         model.train()
 
         for  batches in tqdm(train_loader, desc=f" Epoch {epoch + 1} in training", leave=False):
@@ -303,10 +303,10 @@ def main():
             valid_topo_loss = {"Valid_Topo_L": valid_topo_loss/len(val_loader)}
             valid_dicebce_loss = {"Valid_DiceBCE_L": valid_dicebce_loss/len(val_loader)}
 
-
-            #if epoch==topo_threshould+1:
-            #    best_valid_loss = best_valid_loss+valid_topo_loss
-            #    print(f" Epoch {epoch + 1}/{config['epochs']}, set best_valid_loss (BCE+DiceL+TopoL/{len(val_loader)}): {best_valid_loss:.4f}")
+            if augmentation_regularization:
+                if epoch==topo_threshould+1:
+                   best_valid_loss = best_valid_loss+valid_topo_loss
+                   print(f" Epoch {epoch + 1}/{config['epochs']}, set best_valid_loss (BCE+DiceL+TopoL/{len(val_loader)}): {best_valid_loss:.4f}")
 
             wandb.log(valid_topo_loss)
             wandb.log(valid_dicebce_loss)
