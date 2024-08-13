@@ -9,7 +9,7 @@ import yaml
 from torch.optim import Adam
 from tqdm import tqdm, trange
 
-from augmentation.Augmentation import Cutout, cutmix
+from augmentation.Augmentation import Cutout, cutmix,circular_mix
 from data.data_loader import loader
 from utils.Loss import Dice_CE_Loss, Topological_Loss
 from utils.one_hot_encode import label_encode, one_hot
@@ -17,7 +17,7 @@ from visualization import *
 from wandb_init import parser_init, wandb_init
 
 from models.Metaformer import caformer_s18_in21ft1k
-from models.Model import model_t_l05_dim1
+from models.Model import model_newdesign_last
 from models.resnet import resnet_v1
 from SSL.simclr import SimCLR
 
@@ -113,7 +113,7 @@ def main():
     ##### Model Building based on arguments  ####
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model           = model_t_l05_dim1(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model           = model_newdesign_last(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         checkpoint_path = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":
@@ -201,7 +201,7 @@ def main():
                 images,labels=images.to(device),labels.to(device)
             
             if args.aug:
-                images,labels   = cutmix(images, labels,args.cutmixpr)
+                images,labels   = circular_mix(images, labels)
                 images,labels   = cutout(images,labels,args.cutoutpr)   
                   
             if args.mode == "ssl_pretrained" or args.mode =="supervised":

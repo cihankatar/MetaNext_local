@@ -48,6 +48,59 @@ def cutmix(images,labels,pr):
     return images,labels
 
 
+import torch
+import numpy as np
+
+def circular_mix(images, masks, alpha=1.0):
+    """
+    Apply circular mixing on a batch of images and their corresponding masks.
+
+    Args:
+        images (torch.Tensor): Batch of images of shape (batch_size, channels, height, width).
+        masks (torch.Tensor): Batch of masks of shape (batch_size, 1, height, width).
+        alpha (float): Hyperparameter for the Beta distribution.
+
+    Returns:
+        mixed_images (torch.Tensor): Batch of images after applying circular mixing.
+        mixed_masks (torch.Tensor): Batch of masks after applying circular mixing.
+    """
+    batch_size, _, H, W = images.size()
+
+    # Sample the lambda value from a Beta distribution
+    lam = np.random.beta(alpha, alpha)
+
+    # Randomly select the indices of two images
+    rand_index = torch.randperm(batch_size)
+
+    # Generate the radius for the circular patch
+    radius = int(np.sqrt(lam) * min(H, W) / 2)
+
+    # Generate the center of the circle
+    cx = np.random.randint(W)
+    cy = np.random.randint(H)
+
+    # Create the circular mask
+    Y, X = torch.meshgrid(torch.arange(H), torch.arange(W), indexing='ij')
+    dist_from_center = torch.sqrt((X - cx)**2 + (Y - cy)**2)
+    circular_mask = dist_from_center <= radius
+    circular_mask = circular_mask.float().unsqueeze(0)
+
+    # Smooth the edges of the circular mask
+    smooth_mask = torch.clamp(1.0 - (dist_from_center - radius) / (0.1 * radius), 0, 1)
+    smooth_mask = smooth_mask.unsqueeze(0).unsqueeze(0)
+
+    # Apply the circular mix to the images and masks
+    mixed_images = images * smooth_mask + images[rand_index] * (1 - smooth_mask)
+    mixed_masks = masks * smooth_mask + masks[rand_index] * (1 - smooth_mask)
+
+    return mixed_images, mixed_masks
+
+
+
+
+
+
+
 # import torch
 # import numpy as np
 

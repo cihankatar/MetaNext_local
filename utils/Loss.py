@@ -2,11 +2,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch_topological.nn import SignatureLoss
+from torch_topological.nn import SignatureLoss,SummaryStatisticLoss
 from torch_topological.nn import VietorisRipsComplex
 from visualization import *
 from skimage.feature import local_binary_pattern 
 import matplotlib.pyplot as plt
+
 #import gudhi as gd
 
 class Topological_Loss(torch.nn.Module):
@@ -24,7 +25,7 @@ class Topological_Loss(torch.nn.Module):
         self.loss               = SignatureLoss(p=self.loss_norm)
         self.sigmoid_f          = nn.Sigmoid()
         self.vr                 = VietorisRipsComplex(dim=self.dimension)
-
+        self.statloss           = SummaryStatisticLoss()
     def forward(self,images, model_output,labels):
 
         predictions = self.sigmoid_f(torch.squeeze(model_output,dim=1))
@@ -35,31 +36,30 @@ class Topological_Loss(torch.nn.Module):
         totalloss   = 0
         for i in range(predictions.shape[0]):
 
-            prediction = torch.tensor(predictions[i]>0.5,dtype=float)
+            prediction  = torch.tensor(predictions[i]>0.5,dtype=float)
             mask        = torch.tensor(masks[i]>0.5,dtype=float)
 
-            p          = local_binary_pattern(prediction.cpu().detach().numpy(), n_points, radius, METHOD)
-            m          = local_binary_pattern(mask.cpu().detach().numpy(), n_points, radius, METHOD)
+            p           = local_binary_pattern(prediction.cpu().detach().numpy(), n_points, radius, METHOD)
+            m           = local_binary_pattern(mask.cpu().detach().numpy(), n_points, radius, METHOD)
 
             points_p = np.array(np.column_stack(np.where(p < self.point_threshould)),float)
             points_m = np.array(np.column_stack(np.where(m < self.point_threshould)),float)
 
-            if points_p.shape[0]>points_m.shape[0]:
-                random_indices = np.random.choice(points_p.shape[0], points_m.shape[0], replace=False)
+            if points_p.shape[0]>(points_m.shape[0]*3):
+                random_indices = np.random.choice(points_p.shape[0], points_m.shape[0]*3, replace=False)
                 points_p = points_p[random_indices]
                 points_p = torch.from_numpy(points_p)
                 points_m = torch.from_numpy(points_m)
-            else:
-                points_p = torch.from_numpy(points_p)
-                points_m = torch.from_numpy(points_m)
-                pad_size = (0,0,0,points_m.shape[0]-points_p.shape[0])
-                points_p = F.pad(points_p,pad_size, "constant", 0)
+            # else:
+            #     points_p = torch.from_numpy(points_p)
+            #     points_m = torch.from_numpy(points_m)
+            #     pad_size = (0,0,0,points_m.shape[0]-points_p.shape[0])
+            #     points_p = F.pad(points_p,pad_size, "constant", 0)
 
             pi_pred      = self.vr(points_p)
             pi_mask      = self.vr(points_m)
-            topo_loss    = self.loss([points_p, pi_pred], [points_m, pi_mask])
+            topo_loss    =  self.statloss(pi_mask,pi_pred)
             totalloss   +=topo_loss
-
         loss        = self.lam * totalloss/predictions.shape[0]
         return loss
 
@@ -71,7 +71,8 @@ class Topological_Loss(torch.nn.Module):
             plt.scatter(points_m[:,0],points_m[:,1],s=1)
             plt.figure()
             plt.scatter(points_p[:,0],points_p[:,1],s=1) 
-
+            points_m.shape
+            points_p.shape
 ''' 
 
 

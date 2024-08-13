@@ -41,7 +41,7 @@ def config_func(training_mode):
         "shuffle"           :True,
         "sratio"            :None,
         "workers"           :2,
-        "cutoutpr"          :0.9,
+        "cutoutpr"          :0.5,
         "cutoutbox"         :25,
         "cutmixpr"          :0.5,
         "noclasses"         :1,
