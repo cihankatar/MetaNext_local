@@ -32,6 +32,11 @@ def testsample(images, labels, prediction,n):
 
 
 def trainsample(images,labels,model_output,n):
+    import torch.nn as nn
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+
     sigm=nn.Sigmoid() 
 
     which_image=n
@@ -58,10 +63,9 @@ def barcod(mask,maskh,predict,predicth,n):
     plt.title('mask_image')
     plt.imshow(mask.detach().numpy(),cmap='gray') 
 
-    plt.title('mask')
     plt.subplot(1, 4, 2)
     plt.title('prediction')
-    plt.imshow(predict.detach().numpy(),cmap='gray' )
+    plt.imshow(predict.detach().numpy(),cmap='gray')
 
     # homology
     x = [0, 100]
@@ -83,6 +87,7 @@ def barcod(mask,maskh,predict,predicth,n):
 
     plt.subplot(1, 4, 4)
     plt.scatter(predict[:,0], predict[:,1],marker='o',color='black')
+    plt.plot(x, y, label='Diagonal')
     plt.xlabel('Values')
     plt.grid(True)
     plt.ylabel('Index')

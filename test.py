@@ -119,7 +119,7 @@ if __name__ == "__main__":
 
 
     cutout                      = Cutout(args.cutoutbox)
-    topo_model = Topological_Loss(model, lam=1)
+    TopoLoss                    = Topological_Loss(lam=0.5, dimension=1).to(device)
 
 
     for batch in tqdm(test_loader, desc=f"testing ", leave=False):
@@ -136,7 +136,7 @@ if __name__ == "__main__":
                 _,model_output    = model(images)
 
             prediction          = torch.sigmoid(model_output)
-            topo_loss           = topo_model(model_output,labels)
+            topo_loss           = TopoLoss(images,model_output,labels)
             #topo_loss           = topo_model(a,labels)
 
             if args.noclasses>1:
