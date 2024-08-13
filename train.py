@@ -52,7 +52,7 @@ def using_device():
 def main():
 
     #### Initial Configs ###
-    data            ='kvasir_1'
+    data            ='isic_1'
     training_mode   ="supervised"
     train           =True
     addtopoloss     = True
@@ -218,7 +218,7 @@ def main():
                     _,model_output  = model(images)
                     DiceBCE_loss    = loss_function.Dice_BCE_Loss(model_output, labels)
                     if addtopoloss:
-                        topo_loss           = TopoLoss(model_output,labels)
+                        topo_loss           = TopoLoss(images,model_output,labels)
                         Dice_BCE_Topo_loss  = DiceBCE_loss + topo_loss
                         epoch_loss          += Dice_BCE_Topo_loss.item()
                         epoch_topo_loss     += topo_loss.item()
@@ -291,7 +291,7 @@ def main():
                     DiceBCE_l            = loss_function.Dice_BCE_Loss(model_output, labels)
 
                     if addtopoloss:
-                        topo_loss               = TopoLoss(model_output,labels)
+                        topo_loss               = TopoLoss(images,model_output,labels)
                         Dice_BCE_Topo_loss      = DiceBCE_l+topo_loss
                         valid_loss             += Dice_BCE_Topo_loss.item() 
                         valid_topo_loss        += topo_loss.item() 

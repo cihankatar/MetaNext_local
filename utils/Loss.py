@@ -11,7 +11,7 @@ import gudhi as gd
 
 class Topological_Loss(torch.nn.Module):
 
-    def __init__(self, lam=0.5, dimension=1,point_threshould=10,radius=2,n_points_rate=18,loss_norm=2,point_cut=400):
+    def __init__(self, lam=0.5, dimension=1,point_threshould=12,radius=2,n_points_rate=18,loss_norm=2,point_cut=400):
         super().__init__()
 
         self.lam                = lam
@@ -26,7 +26,7 @@ class Topological_Loss(torch.nn.Module):
         self.sigmoid_f          = nn.Sigmoid()
         self.vr                 = VietorisRipsComplex(dim=self.dimension)
 
-    def forward(self, model_output,labels):
+    def forward(self,images, model_output,labels):
 
         predictions = self.sigmoid_f(torch.squeeze(model_output,dim=1))
         masks       = torch.squeeze(labels,dim=1)
@@ -42,9 +42,8 @@ class Topological_Loss(torch.nn.Module):
             points_p = np.array(np.column_stack(np.where(p < self.point_threshould)),float)
             points_m = np.array(np.column_stack(np.where(m < self.point_threshould)),float)
             
-            if not points_p.shape[0] < 400:
-                random_indices = np.random.choice(points_p.shape[0], points_m, replace=False)
-                points_p = points_p[random_indices]
+            random_indices = np.random.choice(points_p.shape[0], points_m.shape[0], replace=False)
+            points_p = points_p[random_indices]
 
             points_p = torch.from_numpy(points_p)
             points_m = torch.from_numpy(points_m)
@@ -54,12 +53,17 @@ class Topological_Loss(torch.nn.Module):
             topo_loss    = self.loss([points_p, pi_pred], [points_m, pi_mask])
             totalloss   +=topo_loss
 
-            #barcod(torch.tensor(m),pi_mask,torch.tensor(p),pi_pred,1)
-            #plt.scatter(points_m[:,0],points_m[:,1],s=1)
-            #barcod(masks[i],pi_mask,predictions[i],pi_pred,1)
-    
         loss        = self.lam * totalloss/predictions.shape[0]
         return loss
+
+
+'''
+            barcod(torch.tensor(m),pi_mask,torch.tensor(p),pi_pred,1)
+            plt.figure()
+            plt.scatter(points_m[:,0],points_m[:,1],s=1)
+            barcod(masks[i],pi_mask,predictions[i],pi_pred,1)
+''' 
+
 
 class Dice_CE_Loss():
     def __init__(self):
