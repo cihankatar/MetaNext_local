@@ -34,21 +34,24 @@ class Topological_Loss(torch.nn.Module):
         n_points    = self.n_points_rate * radius
         METHOD      = 'uniform' 
         totalloss   = 0
+        
         for i in range(predictions.shape[0]):
+            prediction = predictions[i].detach().numpy()
+            mask       = masks[i].detach().numpy()
 
-            if epoch >2:
-                prediction  = torch.tensor(predictions[i]>0.5,dtype=int)
-                p           = local_binary_pattern(prediction.cpu().detach().numpy(), n_points, radius, METHOD)
+            if epoch >-1:
+                prediction  = np.array(prediction>0.5,dtype=int)
+                bin_p       = local_binary_pattern(prediction, n_points, radius, METHOD)
             else:
-                p           = local_binary_pattern(predictions[i].cpu().detach().numpy(), n_points, radius, METHOD)
+                bin_p       = local_binary_pattern(predictions, n_points, radius, METHOD)
             
-            mask        = torch.tensor(masks[i]>0.5,dtype=int)
-            m           = local_binary_pattern(mask.cpu().detach().numpy(), n_points, radius, METHOD)
+            mask        = np.array(masks>0.5,dtype=int)
+            bin_m       = local_binary_pattern(mask, n_points, radius, METHOD)
 
-            points_p = np.array(np.column_stack(np.where(p < self.point_threshould)),float)
-            points_m = np.array(np.column_stack(np.where(m < self.point_threshould)),float)
+            points_p = np.array(np.column_stack(np.where(bin_p < self.point_threshould)),float)
+            points_m = np.array(np.column_stack(np.where(bin_m < self.point_threshould)),float)
             
-            print(points_m.shape,points_p.shape)
+            #print(points_m.shape,points_p.shape)
 
             if points_p.shape[0]>(points_m.shape[0]*2):
                 random_indices = np.random.choice(points_p.shape[0], points_m.shape[0]*2, replace=False)
