@@ -11,7 +11,7 @@ from visualization import *
 from utils.metrics import *
 
 from data.data_loader import loader
-from augmentation.Augmentation import Cutout, cutmix
+from augmentation.Augmentation import Cutout
 
 """
 from models.CA_CBA_CA import CA_CBA_CA
@@ -66,7 +66,6 @@ if __name__ == "__main__":
     config_res          = ', '.join(config_res)
     config              = wandb_init(WANDB_API_KEY,WANDB_DIR,args,config_res,data)
 
-    
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
         model                       = model_newdesign_last(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
@@ -124,9 +123,7 @@ if __name__ == "__main__":
 
     for batch in tqdm(test_loader, desc=f"testing ", leave=False):
         images,labels   = batch                
-        if args.aug:
-            images,labels   = cutmix(images,labels,args.cutmixpr)
-            images,labels   = cutout(images,labels,args.cutoutpr)   
+
         with torch.no_grad():
 
             if args.mode == "ssl_pretrained":
@@ -136,7 +133,7 @@ if __name__ == "__main__":
                 _,model_output    = model(images)
 
             prediction          = torch.sigmoid(model_output)
-            topo_loss           = TopoLoss(images,model_output,labels)
+            topo_loss           = TopoLoss(model_output,labels)
             #topo_loss           = topo_model(a,labels)
 
             if args.noclasses>1:

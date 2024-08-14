@@ -26,7 +26,7 @@ class Topological_Loss(torch.nn.Module):
         self.sigmoid_f          = nn.Sigmoid()
         self.vr                 = VietorisRipsComplex(dim=self.dimension)
         self.statloss           = SummaryStatisticLoss()
-    def forward(self, model_output,labels,epoch):
+    def forward(self, model_output,labels):
 
         predictions = self.sigmoid_f(torch.squeeze(model_output,dim=1))
         masks       = torch.squeeze(labels,dim=1)
@@ -40,7 +40,7 @@ class Topological_Loss(torch.nn.Module):
             mask       = masks[i].detach().numpy()
 
             prediction  = np.array(prediction>np.mean(prediction),dtype=int)
-            bin_p       = local_binary_pattern(prediction, n_points, radius, METHOD)            
+            bin_p       = local_binary_pattern(prediction, n_points, radius, METHOD)
             
             mask        = np.array(mask>np.mean(mask),dtype=int)
             bin_m       = local_binary_pattern(mask, n_points, radius, METHOD)

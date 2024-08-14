@@ -220,7 +220,7 @@ def main():
                     _,model_output  = model(images)
                     DiceBCE_loss    = loss_function.Dice_BCE_Loss(model_output, labels)
                     if addtopoloss:
-                        topo_loss           = TopoLoss(model_output,labels,epoch)
+                        topo_loss           = TopoLoss(model_output,labels)
                         Dice_BCE_Topo_loss  = DiceBCE_loss + topo_loss
                         epoch_loss          += Dice_BCE_Topo_loss.item()
                         epoch_topo_loss     += topo_loss.item()
