@@ -22,14 +22,11 @@ def circular_mix(images, masks, pr, alpha=1.0):
     if torch.rand(1) < pr:
         batch_size, _, H, W = images.size()
 
-        # Sample the lambda value from a Beta distribution
-        lam = np.random.beta(alpha, alpha)
-
         # Randomly select the indices of two images
         rand_index = torch.randperm(batch_size)
 
         # Generate the radius for the circular patch
-        radius = int(np.sqrt(lam) * min(H, W) / 2)
+        radius = np.random.uniform(100, 200)
 
         # Generate the center of the circle
         cx = np.random.randint(W)
@@ -66,7 +63,7 @@ def cutout(img,lbl, pad_size, replace,count=1):
     # Randomly select the center of the circle
     center_x = random.randint(0, h)
     center_y = random.randint(0, w)
-    mask     = cv2.circle(mask, (center_x, center_y), (pad_size*2) // 2, 0, -1)
+    mask     = cv2.circle(mask, (center_x, center_y), (pad_size*4) // 2, 0, -1)
     
     for _ in range(count):
         # center_h, center_w = torch.randint(high=h, size=(1,)), torch.randint(high=w, size=(1,))
