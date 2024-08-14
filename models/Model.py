@@ -129,7 +129,7 @@ class Bottleneck(nn.Module):
         return out
 #####   MODEL #####
     
-class model_newdesign_last(nn.Module):
+class model_(nn.Module):
     def __init__(self,n_classes,config_res=None,training_mode=None,imnetpretrained=None):
         super().__init__()
         

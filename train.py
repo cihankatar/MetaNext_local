@@ -17,7 +17,7 @@ from visualization import *
 from wandb_init import parser_init, wandb_init
 
 from models.Metaformer import caformer_s18_in21ft1k
-from models.Model import model_newdesign_last
+from models.Model import model_
 from models.resnet import resnet_v1
 from SSL.simclr import SimCLR
 
@@ -114,7 +114,7 @@ def main():
     ##### Model Building based on arguments  ####
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model           = model_newdesign_last(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model           = model_(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         checkpoint_path = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":
@@ -197,16 +197,17 @@ def main():
             #start=timer.time()
             images,labels   = batches
 
+
             if isinstance(images, (list,tuple)):
                 images=[im.to(device) for im in images] 
                 labels=[lab.to(device) for lab in labels] 
             else:
                 images,labels=images.to(device),labels.to(device)
-            
+
             if args.aug:
                 images,labels   = circular_mix(images, labels,args.cutmixpr)
-                images,labels   = cutout(images,labels,args.cutoutpr)   
-                  
+                images,labels   = cutout(images,labels,args.cutoutpr)  
+
             if args.mode == "ssl_pretrained" or args.mode =="supervised":
 
                 if args.mode == "ssl_pretrained":

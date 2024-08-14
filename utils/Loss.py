@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 class Topological_Loss(torch.nn.Module):
 
-    def __init__(self, lam=0.00005, dimension=1,point_threshould=5,radius=1,n_points_rate=8,loss_norm=2):
+    def __init__(self, lam=0.00003, dimension=1,point_threshould=5,radius=1,n_points_rate=8,loss_norm=2):
         super().__init__()
 
         self.lam                = lam
@@ -26,6 +26,7 @@ class Topological_Loss(torch.nn.Module):
         self.sigmoid_f          = nn.Sigmoid()
         self.vr                 = VietorisRipsComplex(dim=self.dimension)
         self.statloss           = SummaryStatisticLoss()
+        
     def forward(self, model_output,labels):
 
         predictions = self.sigmoid_f(torch.squeeze(model_output,dim=1))
@@ -36,8 +37,8 @@ class Topological_Loss(torch.nn.Module):
         totalloss   = 0
         
         for i in range(predictions.shape[0]):
-            prediction = predictions[i].detach().numpy()
-            mask       = masks[i].detach().numpy()
+            prediction = predictions[i].cpu().detach().numpy()
+            mask       = masks[i].cpu().detach().numpy()
 
             prediction  = np.array(prediction>np.mean(prediction),dtype=int)
             bin_p       = local_binary_pattern(prediction, n_points, radius, METHOD)

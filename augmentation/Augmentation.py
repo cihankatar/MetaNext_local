@@ -21,6 +21,7 @@ def circular_mix(images, masks, pr, alpha=1.0):
     """
     if torch.rand(1) < pr:
         batch_size, _, H, W = images.size()
+        device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Randomly select the indices of two images
         rand_index = torch.randperm(batch_size)
@@ -39,14 +40,14 @@ def circular_mix(images, masks, pr, alpha=1.0):
         circular_mask = circular_mask.float().unsqueeze(0)
 
         # Smooth the edges of the circular mask
-        smooth_mask = torch.clamp(1.0 - (dist_from_center - radius) / (0.1 * radius), 0, 1)
-        smooth_mask = smooth_mask.unsqueeze(0).unsqueeze(0)
+        smooth_mask = torch.clamp(1.0 - (dist_from_center - radius) / (0.1 * radius), 0, 1).to(device)
+        smooth_mask = smooth_mask.unsqueeze(0).unsqueeze(0).to(device)
 
         # Apply the circular mix to the images and masks
         mixed_images = images * smooth_mask + images[rand_index] * (1 - smooth_mask)
         mixed_masks = masks * smooth_mask + masks[rand_index] * (1 - smooth_mask)
 
-        return mixed_images, mixed_masks
+        return mixed_images.to(device), mixed_masks.to(device)
     
     else:
         return images, masks
@@ -54,11 +55,11 @@ def circular_mix(images, masks, pr, alpha=1.0):
 
 def cutout(img,lbl, pad_size, replace,count=1):
     _, h, w = img.shape
+    device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # cutout_img = img.clone()
     # cutout_lbl = lbl.clone()
-    cutout_c_img = img.clone()
-    cutout_c_lbl = lbl.clone()
-
+    cutout_c_img = img.clone().cpu()
+    cutout_c_lbl = lbl.clone().cpu()
     mask = np.ones((h, w), np.uint8)
     # Randomly select the center of the circle
     center_x = random.randint(0, h)
@@ -82,6 +83,7 @@ class Cutout(torch.nn.Module):
         super().__init__()
         self.pad_size = int(pad_size)
         self.replace = replace
+        self.device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def forward(self, images,masks,p):
         B,Cim,H,W = images.shape[0],images.shape[1],images.shape[2],images.shape[3]
@@ -105,7 +107,7 @@ class Cutout(torch.nn.Module):
             images_c = torch.concat(cutout_c_images,dim=0).reshape(B,Cim,H,W)
             masks_c = torch.concat(lbls_c,dim=0).reshape(B,Cmask,H,W)
 
-            return images_c,masks_c #,images,masks
+            return images_c.to(self.device),masks_c.to(self.device) #,images,masks
         else:
             return images,masks #,images,masks
         
