@@ -87,8 +87,10 @@ def barcod(mask,maskh,points_p,predict,predicth,points_m,n):
     plt.axis('scaled')
 
     # homology
-    m_x = [0, maskh[n][1].max()]
-    p_x = [0, predicth[n][1].max()]
+    if maskh[n][1].max()>predicth[n][1].max():
+        x = [0, maskh[n][1].max()]
+    else:
+        x = [0, predicth[n][1].max()]
 
     # Plot the diagonal
     mask     = maskh[n][1].cpu().detach().numpy()
@@ -96,7 +98,7 @@ def barcod(mask,maskh,points_p,predict,predicth,points_m,n):
 
     plt.subplot(3, 2, 5)
     plt.scatter(mask[:,0],mask[:,1] ,marker='o',color='black')
-    plt.plot(m_x, m_x, label='Diagonal',color='red')
+    plt.plot(x, x, label='Diagonal',color='red')
     plt.title('Mask Image PH',fontsize = 8)
     plt.xlabel('Birth',fontsize = 8)
     plt.ylabel('Death',fontsize = 8)
@@ -106,7 +108,7 @@ def barcod(mask,maskh,points_p,predict,predicth,points_m,n):
 
     plt.subplot(3, 2, 6)
     plt.scatter(predict[:,0], predict[:,1],marker='o',color='black')
-    plt.plot(p_x, p_x, label='Diagonal',color='red')
+    plt.plot(x, x, label='Diagonal',color='red')
     plt.title('Prediction Image PH',fontsize = 8)
     plt.xlabel('Birth',fontsize = 8)
     plt.ylabel('Death',fontsize = 8)

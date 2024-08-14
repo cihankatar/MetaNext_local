@@ -74,7 +74,7 @@ class Topological_Loss(torch.nn.Module):
 
 
 '''
-            barcod(torch.tensor(m),pi_mask,points_m,torch.tensor(p),pi_pred,points_p,1)
+            barcod(torch.tensor(bin_m),pi_mask,points_m,torch.tensor(bin_p),pi_pred,points_p,1)
             barcod(masks[i],pi_mask,points_m,predictions[i],pi_pred,points_p,1)
             points_m.shape
             points_p.shape
