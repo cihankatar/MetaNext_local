@@ -63,12 +63,12 @@ def barcod(mask,maskh,points_p,predict,predicth,points_m,n):
     plt.title('Mask Image',fontsize = 8)
     plt.xticks(fontsize=8)
     plt.yticks(fontsize=8,rotation=90)
-    plt.imshow(mask.detach().numpy(),cmap='gray') 
+    plt.imshow((np.rot90(mask.detach().numpy())),cmap='gray') 
 
 
     plt.subplot(3, 2, 2)
     plt.title('Model Prediction',fontsize = 8)
-    plt.imshow(predict.detach().numpy(),cmap='gray')
+    plt.imshow(np.rot90(predict.detach().numpy()),cmap='gray')
     plt.xticks(fontsize=8)
     plt.yticks(fontsize=8,rotation=90)
 
