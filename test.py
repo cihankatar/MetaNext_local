@@ -118,7 +118,7 @@ if __name__ == "__main__":
 
 
     cutout                      = Cutout(args.cutoutbox)
-    TopoLoss                    = Topological_Loss(lam=0.5, dimension=1).to(device)
+    TopoLoss                    = Topological_Loss(lam=0.00003, dimension=1).to(device)
 
 
     for batch in tqdm(test_loader, desc=f"testing ", leave=False):
