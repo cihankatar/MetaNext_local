@@ -64,7 +64,7 @@ def cutout(img,lbl, pad_size, replace,count=1):
     # Randomly select the center of the circle
     center_x = random.randint(0, h)
     center_y = random.randint(0, w)
-    mask     = cv2.circle(mask, (center_x, center_y), (pad_size*4) // 2, 0, -1)
+    mask     = cv2.circle(mask, (center_x, center_y), (pad_size*7) // 2, 0, -1)
     
     for _ in range(count):
         # center_h, center_w = torch.randint(high=h, size=(1,)), torch.randint(high=w, size=(1,))
@@ -99,6 +99,9 @@ class Cutout(torch.nn.Module):
                 cutout_c_img,cutout_c_lbl = cutout(images[i],masks[i], self.pad_size, self.replace)  #cutout_image,mask, add for squarecutout
                 # cutout_images.append(cutout_image)
                 # lbls.append(mask)
+                if np.count_nonzero(cutout_c_lbl) < 1000:
+                    cutout_c_img,cutout_c_lbl = cutout(images[i],masks[i], self.pad_size, self.replace)
+
                 cutout_c_images.append(cutout_c_img)
                 lbls_c.append(cutout_c_lbl)
 
@@ -108,6 +111,7 @@ class Cutout(torch.nn.Module):
             masks_c = torch.concat(lbls_c,dim=0).reshape(B,Cmask,H,W)
 
             return images_c.to(self.device),masks_c.to(self.device) #,images,masks
+
         else:
             return images,masks #,images,masks
         

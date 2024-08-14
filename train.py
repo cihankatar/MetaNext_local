@@ -55,7 +55,7 @@ def main():
     data            ='isic_1'
     training_mode   ="supervised"
     train           = True
-    addtopoloss     = False
+    addtopoloss     = True
     
     augmentation_regularization = False
     aug_threshould = 0
