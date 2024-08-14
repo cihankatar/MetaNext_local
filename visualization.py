@@ -56,44 +56,65 @@ def trainsample(images,labels,model_output,n):
     plt.subplot(1, 3, 3)
     plt.imshow(prediction)
 
-def barcod(mask,maskh,predict,predicth,n):
+def barcod(mask,maskh,points_p,predict,predicth,points_m,n):
     
     plt.figure()
-    plt.subplot(1, 4, 1)
-    plt.title('mask_image')
+    plt.subplot(3, 2, 1)
+    plt.title('Mask Image',fontsize = 8)
+    plt.xticks(fontsize=8)
+    plt.yticks(fontsize=8,rotation=90)
     plt.imshow(mask.detach().numpy(),cmap='gray') 
 
-    plt.subplot(1, 4, 2)
-    plt.title('prediction')
+
+    plt.subplot(3, 2, 2)
+    plt.title('Model Prediction',fontsize = 8)
     plt.imshow(predict.detach().numpy(),cmap='gray')
+    plt.xticks(fontsize=8)
+    plt.yticks(fontsize=8,rotation=90)
+
+    plt.subplot(3, 2, 3)
+    plt.scatter(points_p[:,0],points_p[:,1] ,s=1)
+    plt.title('Extracted Points of Mask Image',fontsize = 8)
+    plt.xticks(fontsize=8)
+    plt.yticks(fontsize=8,rotation=90)
+    plt.axis('scaled')
+
+    plt.subplot(3, 2, 4)
+    plt.scatter(points_m[:,0],points_m[:,1] ,s=1)
+    plt.title('Extracted Points of Predicted Image',fontsize = 8)
+    plt.xticks(fontsize=8)
+    plt.yticks(fontsize=8,rotation=90)
+    plt.axis('scaled')
 
     # homology
-    x = [0, 100]
-    y = [0, 100]
+    m_x = [0, maskh[n][1].max()]
+    p_x = [0, predicth[n][1].max()]
 
     # Plot the diagonal
     mask     = maskh[n][1].cpu().detach().numpy()
     predict  = predicth[n][1].cpu().detach().numpy()
 
-    plt.subplot(1, 4, 3)
+    plt.subplot(3, 2, 5)
     plt.scatter(mask[:,0],mask[:,1] ,marker='o',color='black')
-    plt.plot(x, y, label='Diagonal')
+    plt.plot(m_x, m_x, label='Diagonal',color='red')
+    plt.title('Mask Image PH',fontsize = 8)
+    plt.xlabel('Birth',fontsize = 8)
+    plt.ylabel('Death',fontsize = 8)
+    plt.xticks(fontsize=8)
+    plt.yticks(fontsize=8,rotation=90)
+    plt.axis('scaled')
 
-    plt.xlabel('Values')
-    plt.grid(True)
-    plt.ylabel('Index')
-    plt.title('mask')
-    plt.show()
-
-    plt.subplot(1, 4, 4)
+    plt.subplot(3, 2, 6)
     plt.scatter(predict[:,0], predict[:,1],marker='o',color='black')
-    plt.plot(x, y, label='Diagonal')
-    plt.xlabel('Values')
-    plt.grid(True)
-    plt.ylabel('Index')
-    plt.title('prediction')
-    plt.show()
+    plt.plot(p_x, p_x, label='Diagonal',color='red')
+    plt.title('Prediction Image PH',fontsize = 8)
+    plt.xlabel('Birth',fontsize = 8)
+    plt.ylabel('Death',fontsize = 8)
+    plt.xticks(fontsize=8)
+    plt.yticks(fontsize=8,rotation=90)
+    plt.axis('scaled')
 
+    plt.tight_layout()
 
 def simclr(images,labels):
     import matplotlib.pyplot as plt
