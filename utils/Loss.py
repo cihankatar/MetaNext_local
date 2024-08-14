@@ -39,11 +39,11 @@ class Topological_Loss(torch.nn.Module):
             prediction = predictions[i].detach().numpy()
             mask       = masks[i].detach().numpy()
 
-            if epoch >-1:
+            if epoch >2:
                 prediction  = np.array(prediction>0.5,dtype=int)
                 bin_p       = local_binary_pattern(prediction, n_points, radius, METHOD)
             else:
-                bin_p       = local_binary_pattern(predictions, n_points, radius, METHOD)
+                bin_p       = local_binary_pattern(prediction, n_points, radius, METHOD)
             
             mask        = np.array(mask>0.5,dtype=int)
             bin_m       = local_binary_pattern(mask, n_points, radius, METHOD)
