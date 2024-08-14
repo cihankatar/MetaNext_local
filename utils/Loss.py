@@ -48,7 +48,6 @@ class Topological_Loss(torch.nn.Module):
 
             points_p = np.array(np.column_stack(np.where(bin_p < self.point_threshould)),float)
             points_m = np.array(np.column_stack(np.where(bin_m < self.point_threshould)),float)
-            
             #print(points_m.shape,points_p.shape)
 
             if points_p.shape[0]>(points_m.shape[0]*2):
@@ -56,11 +55,6 @@ class Topological_Loss(torch.nn.Module):
                 points_p = points_p[random_indices]
                 points_p = torch.from_numpy(points_p)
                 points_m = torch.from_numpy(points_m)
-            # else:
-            #     points_p = torch.from_numpy(points_p)
-            #     points_m = torch.from_numpy(points_m)
-            #     pad_size = (0,0,0,points_m.shape[0]-points_p.shape[0])
-            #     points_p = F.pad(points_p,pad_size, "constant", 0)
 
             pi_pred      = self.vr(points_p)
             pi_mask      = self.vr(points_m)
