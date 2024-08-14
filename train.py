@@ -9,7 +9,7 @@ import yaml
 from torch.optim import Adam
 from tqdm import tqdm, trange
 
-from augmentation.Augmentation import Cutout, cutmix,circular_mix
+from augmentation.Augmentation import Cutout,circular_mix
 from data.data_loader import loader
 from utils.Loss import Dice_CE_Loss, Topological_Loss
 from utils.one_hot_encode import label_encode, one_hot
@@ -56,9 +56,10 @@ def main():
     training_mode   ="supervised"
     train           =True
     addtopoloss     = True
-    topo_threshould = 0
+    
     augmentation_regularization = False
-
+    aug_threshould = 0
+    
     device         = using_device()
     WANDB_DIR      = os.environ["WANDB_DIR"]
     WANDB_API_KEY  = os.environ["WANDB_API_KEY"]
@@ -143,11 +144,11 @@ def main():
     #flops = eval(re.findall(r'([\d.]+)', macs)[0])*2
     # Extract the unit
     #flops_unit = re.findall(r'([A-Za-z]+)', macs)[0][0]
-
     #print('Computational complexity: {:<8}'.format(macs))
     #print('Computational complexity: {} {}Flops'.format(flops, flops_unit))
     #print('Number of parameters: {:<8}'.format(params))
     
+
     best_valid_loss             = float("inf")
     optimizer                   = Adam(model.parameters(), lr=config['learningrate'])
     loss_function               = Dice_CE_Loss()
@@ -165,8 +166,10 @@ def main():
     print(f"Model  : {model.__class__.__name__+'['+str(res)+']'}, trainable params: {trainable_params}")
     print(f"Training with {len(train_loader)*args.bsize} images~~ , Saving checkpoint: {checkpoint_path}")
     print(f"Topology Loss Config: regularization, {augmentation_regularization}, Dim - {TopoLoss.vr.dim}, lambda - {TopoLoss.lam}, Addtopoloss:{addtopoloss}, point_threshould- {TopoLoss.point_threshould}, radius- {TopoLoss.radius},n_points_rate-{TopoLoss.n_points_rate},loss_norm-{TopoLoss.loss_norm}")
+    
     ##########  TRAINING ##########
 #    args.shuffle = False
+
     for epoch in trange(config['epochs'], desc="Training"):
 
         epoch_loss = 0.0
@@ -180,12 +183,12 @@ def main():
                 pretrained_encoder.eval()
 
         if augmentation_regularization:
-            if epoch >= topo_threshould/2 and epoch <= topo_threshould:
-                args.cutoutpr = initialcutoutpr - epoch/(topo_threshould*4)
-                args.cutmixpr = initialcutmixpr - epoch/(topo_threshould*4)
+            if epoch >= aug_threshould/2 and epoch <= aug_threshould:
+                args.cutoutpr = initialcutoutpr - epoch/(aug_threshould*4)
+                args.cutmixpr = initialcutmixpr - epoch/(aug_threshould*4)
                 print('augmentation prabability is reducing -- ',args.cutoutpr)
 
-            if epoch > topo_threshould:
+            if epoch > aug_threshould:
                 args.aug=False
     
         model.train()
@@ -201,7 +204,7 @@ def main():
                 images,labels=images.to(device),labels.to(device)
             
             if args.aug:
-                images,labels   = circular_mix(images, labels)
+                images,labels   = circular_mix(images, labels,args.cutmixpr)
                 images,labels   = cutout(images,labels,args.cutoutpr)   
                   
             if args.mode == "ssl_pretrained" or args.mode =="supervised":
@@ -243,8 +246,6 @@ def main():
         epoch_topo_loss     = {"Training_Topo_L" : epoch_topo_loss / len(train_loader)}
         epoch_DiceBCEloss   = {"Training_DiceBCE_L" : epoch_DiceBCEloss / len(train_loader)}
 
-#        epoch_topo_loss = (epoch_topo_loss / len(train_loader))
-#        epoch_DiceBCEloss = (epoch_DiceBCEloss / len(train_loader))
 
         wandb.log(epoch_topo_loss)
         wandb.log(epoch_DiceBCEloss)
@@ -272,7 +273,6 @@ def main():
                     labels = [lab.to(device) for lab in labels] 
                 else:
                     images,labels=images.to(device),labels.to(device)
-
 
                 if args.mode == "ssl":
                     val_loss,_      = model(images)
@@ -304,7 +304,7 @@ def main():
             valid_dicebce_loss = {"Valid_DiceBCE_L": valid_dicebce_loss/len(val_loader)}
 
             if augmentation_regularization:
-                if epoch==topo_threshould+1:
+                if epoch==aug_threshould+1:
                    best_valid_loss = best_valid_loss+valid_topo_loss
                    print(f" Epoch {epoch + 1}/{config['epochs']}, set best_valid_loss (BCE+DiceL+TopoL/{len(val_loader)}): {best_valid_loss:.4f}")
 
