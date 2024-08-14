@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 class Topological_Loss(torch.nn.Module):
 
-    def __init__(self, lam=0.00003, dimension=1,point_threshould=5,radius=1,n_points_rate=8,loss_norm=2):
+    def __init__(self, lam=0.00005, dimension=1,point_threshould=5,radius=1,n_points_rate=8,loss_norm=2):
         super().__init__()
 
         self.lam                = lam
