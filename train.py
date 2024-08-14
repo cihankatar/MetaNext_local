@@ -54,8 +54,8 @@ def main():
     #### Initial Configs ###
     data            ='isic_1'
     training_mode   ="supervised"
-    train           =True
-    addtopoloss     = True
+    train           = True
+    addtopoloss     = False
     
     augmentation_regularization = False
     aug_threshould = 0
@@ -243,19 +243,19 @@ def main():
             #end=timer.time()
             #print(end-start)
 
+        e_loss              = {"epoch_loss" : epoch_loss / len(train_loader)}
+        wandb.log(e_loss)
 
         if addtopoloss:
             epoch_topo_loss     = {"Training_Topo_L" : epoch_topo_loss / len(train_loader)}
             epoch_DiceBCEloss   = {"Training_DiceBCE_L" : epoch_DiceBCEloss / len(train_loader)}
             wandb.log(epoch_topo_loss)
             wandb.log(epoch_DiceBCEloss)
-            print(f"-->Epoch {epoch + 1}/{config['epochs']}, Training Losses : BCE+DiceL+TopoL: {e_loss['Training_L']:.4f}, DiceBCEloss: {epoch_DiceBCEloss['Training_DiceBCE_L']:.4f}, TopoL: {epoch_topo_loss['Training_Topo_L']:.4f} ")
-       
+        
+        if addtopoloss:
+            print(f"-->Epoch {epoch + 1}/{config['epochs']}, Training Losses : BCE+DiceL+TopoL: {e_loss['epoch_loss']:.4f}, DiceBCEloss: {epoch_DiceBCEloss['Training_DiceBCE_L']:.4f}, TopoL: {epoch_topo_loss['Training_Topo_L']:.4f} ")
         else:
-            e_loss              = {"epoch_loss" : epoch_loss / len(train_loader)}
-            wandb.log(e_loss)
-            print(f"-->Epoch {epoch + 1}/{config['epochs']}, Training Losses : BCE+DiceL : {e_loss['Training_L']:.4f}")
-
+            print(f"-->Epoch {epoch + 1}/{config['epochs']}, Training Losses : BCE+DiceL : {e_loss['epoch_loss']:.4f}")
 
     ##########  VALIDATION ##########
 
@@ -299,28 +299,29 @@ def main():
                     else:
                         valid_loss     += DiceBCE_l.item() 
 
-        if addtopoloss:
-            valid_topo_loss = {"Valid_Topo_L": valid_topo_loss/len(val_loader)}
-            valid_dicebce_loss = {"Valid_DiceBCE_L": valid_dicebce_loss/len(val_loader)}
-            wandb.log(valid_topo_loss)
-            wandb.log(valid_dicebce_loss)
-            print(f" --> Validation Losses: BCE+DiceL+TopoL: {valid_epoch_loss['Validation_L']:.4f}, Valid_DiceBCE_loss:{valid_dicebce_loss['Valid_DiceBCE_L']:.4f}, Valid_TopoLoss: {valid_topo_loss['Valid_Topo_L']:.4f} ")
-
-        else:
             valid_epoch_loss = {"validation_loss": valid_loss/len(val_loader)}
             wandb.log(valid_epoch_loss)
-            print(f" --> Validation Losses: BCE+DiceL: {valid_epoch_loss['Validation_L']:.4f} ")
+
+            if addtopoloss:
+                valid_topo_loss = {"Valid_Topo_L": valid_topo_loss/len(val_loader)}
+                valid_dicebce_loss = {"Valid_DiceBCE_L": valid_dicebce_loss/len(val_loader)}
+                wandb.log(valid_topo_loss)
+                wandb.log(valid_dicebce_loss)
+
+            if augmentation_regularization:
+                if epoch==aug_threshould+1:
+                   best_valid_loss = best_valid_loss+valid_topo_loss
+                   print(f" Epoch {epoch + 1}/{config['epochs']}, set best_valid_loss (BCE+DiceL+TopoL/{len(val_loader)}): {best_valid_loss:.4f}")
+
+
+        if addtopoloss:
+            print(f" --> Validation Losses: BCE+DiceL+TopoL: {valid_epoch_loss['validation_loss']:.4f}, Valid_DiceBCE_loss:{valid_dicebce_loss['Valid_DiceBCE_L']:.4f}, Valid_TopoLoss: {valid_topo_loss['Valid_Topo_L']:.4f} ")
+        else:
+            print(f" --> Validation Losses: BCE+DiceL: {valid_epoch_loss['validation_loss']:.4f} ")
       
-
-        if augmentation_regularization:
-            if epoch==aug_threshould+1:
-                best_valid_loss = best_valid_loss+valid_topo_loss
-                print(f" Epoch {epoch + 1}/{config['epochs']}, set best_valid_loss (BCE+DiceL+TopoL/{len(val_loader)}): {best_valid_loss:.4f}")
-
-
-        if valid_epoch_loss['Validation_L'] < best_valid_loss:
-            print(f" Best val. lost updated: {valid_epoch_loss['Validation_L']:.4f},  New param. saved to checkpoint_path \n")
-            best_valid_loss = valid_epoch_loss['Validation_L']
+        if valid_epoch_loss['validation_loss'] < best_valid_loss:
+            print(f" Best val. lost updated: {valid_epoch_loss['validation_loss']:.4f},  New param. saved to checkpoint_path \n")
+            best_valid_loss = valid_epoch_loss['validation_loss']
 
             if args.mode == "ssl_pretrained" or args.mode == "supervised":
                 torch.save(model.state_dict(), checkpoint_path)   # saving supervised or ssl_pretrained supervised params with configs
