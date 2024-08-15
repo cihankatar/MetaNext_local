@@ -9,7 +9,7 @@ import yaml
 from torch.optim import Adam
 from tqdm import tqdm, trange
 
-from augmentation.Augmentation import Cutout,circular_mix
+from augmentation.Augmentation import Cutout,cutmix
 from data.data_loader import loader
 from utils.Loss import Dice_CE_Loss, Topological_Loss
 from utils.one_hot_encode import label_encode, one_hot
@@ -155,7 +155,7 @@ def main():
     TopoLoss                    = Topological_Loss(lam=0.00005, dimension=1).to(device)
 
     scheduler                   = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, config['epochs'], eta_min=config['learningrate']/10, last_epoch=-1)
-    cutout                      = Cutout(args.cutoutbox)
+    cutout                      = Cutout(args.cutoutpr,args.cutoutbox)
     initialcutoutpr             = args.cutoutpr 
     initialcutmixpr             = args.cutmixpr
     
@@ -205,7 +205,7 @@ def main():
                 images,labels=images.to(device),labels.to(device)
 
             if args.aug:
-                images,labels   = circular_mix(images, labels,args.cutmixpr)
+                images,labels   = cutmix(images, labels,args.cutmixpr)
                 images,labels   = cutout(images,labels,args.cutoutpr)  
 
             if args.mode == "ssl_pretrained" or args.mode =="supervised":
