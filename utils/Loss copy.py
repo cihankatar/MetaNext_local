@@ -29,34 +29,35 @@ class Topological_Loss(torch.nn.Module):
         
     def forward(self, model_output,labels):
 
+        predictions = self.sigmoid_f(torch.squeeze(model_output,dim=1))
+        masks       = torch.squeeze(labels,dim=1)
         radius      = self.radius
         n_points    = self.n_points_rate * radius
         METHOD      = 'uniform' 
         totalloss   = 0
         
-        predictions = sobel_edge_detection(model_output)
-        masks       = sobel_edge_detection(labels)
-        
-        # Threshold to get binary edges
-        threshold = 0.1
-        edges_preds = (model_output > threshold)
-        edges_masks = (masks > threshold)
-
         for i in range(predictions.shape[0]):
-            edges_pred       = torch.squeeze(edges_preds[i],dim=0)
-            edges_mask       = torch.squeeze(edges_masks[i],dim=0)
-            # Extract the coordinates of edge points
-            bins_pred = torch.nonzero(edges_pred, as_tuple=False)  # Shape [num_edges, 2]
-            bins_mask = torch.nonzero(edges_mask, as_tuple=False)  # Shape [num_edges, 2]
+            prediction = predictions[i].cpu().detach().numpy()
+            mask       = masks[i].cpu().detach().numpy()
 
-            # Randomly sample 500 points from the edge points
-            num_points = 500
-            if bins_pred.shape[0] > num_points:
-                point_p = bins_pred[torch.randperm(bins_pred.shape[0])[:num_points]]
-                point_m = bins_mask[torch.randperm(bins_mask.shape[0])[:num_points]]
+            prediction  = np.array(prediction>np.mean(prediction),dtype=int)
+            bin_p       = local_binary_pattern(prediction, n_points, radius, METHOD)
+            
+            mask        = np.array(mask>np.mean(mask),dtype=int)
+            bin_m       = local_binary_pattern(mask, n_points, radius, METHOD)
 
-            pi_pred      = self.vr(point_p.float())
-            pi_mask      = self.vr(point_m.float())
+            points_p = np.array(np.column_stack(np.where(bin_p < self.point_threshould)),float)
+            points_m = np.array(np.column_stack(np.where(bin_m < self.point_threshould)),float)
+            #print(points_m.shape,points_p.shape)
+
+            if points_p.shape[0]>(points_m.shape[0]*2):
+                random_indices = np.random.choice(points_p.shape[0], points_m.shape[0]*2, replace=False)
+                points_p = points_p[random_indices]
+                points_p = torch.from_numpy(points_p)
+                points_m = torch.from_numpy(points_m)
+
+            pi_pred      = self.vr(points_p)
+            pi_mask      = self.vr(points_m)
             topo_loss    =  self.statloss(pi_mask,pi_pred)
             totalloss   +=topo_loss
             
@@ -65,34 +66,11 @@ class Topological_Loss(torch.nn.Module):
 
 
 '''
-            barcod(edges_mask,pi_mask,point_m,edges_pred,pi_pred,point_p,1)
             barcod(torch.tensor(bin_m),pi_mask,points_m,torch.tensor(bin_p),pi_pred,points_p,1)
             barcod(masks[i],pi_mask,points_m,predictions[i],pi_pred,points_p,1)
             points_m.shape
             points_p.shape
 ''' 
-
-
-import torch
-import matplotlib.pyplot as plt
-
-# Assume `grayscale_image` is already loaded and Sobel edges are detected
-# We will use the edge detection tensor `edges` from previous steps
-
-def sobel_edge_detection(image):
-    sobel_x = torch.tensor([[-1., 0., 1.], 
-                            [-2., 0., 2.], 
-                            [-1., 0., 1.]], dtype=torch.float32).unsqueeze(0).unsqueeze(0)
-
-    sobel_y = torch.tensor([[-1., -2., -1.], 
-                            [ 0.,  0.,  0.], 
-                            [ 1.,  2.,  1.]], dtype=torch.float32).unsqueeze(0).unsqueeze(0)
-
-    edge_x = torch.nn.functional.conv2d(image, sobel_x, padding=1)
-    edge_y = torch.nn.functional.conv2d(image, sobel_y, padding=1)
-    edge_magnitude = torch.sqrt(edge_x**2 + edge_y**2)
-    return edge_magnitude
-
 
 
 class Dice_CE_Loss():
