@@ -29,8 +29,8 @@ class Topological_Loss(torch.nn.Module):
         
     def forward(self, model_output,labels):
         totalloss = 0
-        predictions = sobel_edge_detection(self.sigmoid_f(model_output))
-        masks       = sobel_edge_detection(labels)
+        sobel_predictions = sobel_edge_detection(self.sigmoid_f(model_output))
+        sobel_masks       = sobel_edge_detection(labels)
     
         predictions = torch.squeeze(predictions,dim=1)       
         masks       = torch.squeeze(masks,dim=1)
