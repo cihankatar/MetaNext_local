@@ -49,11 +49,17 @@ class Topological_Loss(torch.nn.Module):
             bins_pred = torch.nonzero(edges_pred, as_tuple=False)  # Shape [num_edges, 2]
             bins_mask = torch.nonzero(edges_mask, as_tuple=False)  # Shape [num_edges, 2]
 
-            # Randomly sample 500 points from the edge points
-            num_points = 500
-            if bins_pred.shape[0] > num_points:
+            num_points = 600
+
+            if bins_pred.shape[0]>600:
                 point_p = bins_pred[torch.randperm(bins_pred.shape[0])[:num_points]]
+            else:
+                point_p = bins_pred
+
+            if bins_mask.shape[0]>600:
                 point_m = bins_mask[torch.randperm(bins_mask.shape[0])[:num_points]]
+            else:
+                point_m = bins_mask
 
             pi_pred      = self.vr(point_p.float())
             pi_mask      = self.vr(point_m.float())
