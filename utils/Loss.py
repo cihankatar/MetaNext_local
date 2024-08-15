@@ -32,8 +32,8 @@ class Topological_Loss(torch.nn.Module):
         sobel_predictions = sobel_edge_detection(self.sigmoid_f(model_output))
         sobel_masks       = sobel_edge_detection(labels)
     
-        predictions = torch.squeeze(predictions,dim=1)       
-        masks       = torch.squeeze(masks,dim=1)
+        predictions = torch.squeeze(sobel_predictions,dim=1)       
+        masks       = torch.squeeze(sobel_masks,dim=1)
 
         for i in range(predictions.shape[0]):
 
