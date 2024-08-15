@@ -24,29 +24,46 @@ class Topological_Loss(torch.nn.Module):
 
         self.loss               = SignatureLoss(p=self.loss_norm)
         self.sigmoid_f          = nn.Sigmoid()
+
         self.vr                 = VietorisRipsComplex(dim=self.dimension)
         self.statloss           = SummaryStatisticLoss()
         
     def forward(self, model_output,labels):
         totalloss = 0
-        sobel_predictions = sobel_edge_detection(self.sigmoid_f(model_output))
-        sobel_masks       = sobel_edge_detection(labels)
+
+        sobel_predictions   = sobel_edge_detection(self.sigmoid_f(model_output))
+        sobel_masks         = sobel_edge_detection(labels)
     
-        predictions = torch.squeeze(sobel_predictions,dim=1)       
-        masks       = torch.squeeze(sobel_masks,dim=1)
+        predictions         = torch.squeeze(sobel_predictions,dim=1)       
+        masks               = torch.squeeze(sobel_masks,dim=1)
 
         for i in range(predictions.shape[0]):
 
-            threshold = 0.5
-            edges_pred = (predictions[i] > threshold)
+            p_min = torch.min(predictions[i])
+            p_max = torch.max(predictions[i])
+            normalized_pred = (predictions[i] - p_min) / (p_max - p_min)
+
+            threshold = 0.2
+            edges_pred = (normalized_pred > threshold)
             edges_mask = (masks[i] > threshold)
 
             # Extract the coordinates of edge points
             bins_pred = torch.nonzero(edges_pred, as_tuple=False)  # Shape [num_edges, 2]
             bins_mask = torch.nonzero(edges_mask, as_tuple=False)  # Shape [num_edges, 2]
 
-            num_points = 300
+            if torch.count_nonzero(bins_pred) < 50:
+                print("bin_pred is empty. Numer of points calculated based on mean")
+                print(edges_mask.shape)
+                edges_pred = (normalized_pred > torch.mean(normalized_pred))
+                bins_pred = torch.nonzero(edges_pred, as_tuple=False)  
 
+            if torch.count_nonzero(bins_mask) < 50:
+                print(bins_mask.unique,edges_mask)
+                print("bin_mask is empty. Numer of points calculated based on mean :")
+                edges_mask = (masks[i] > torch.mean(masks[i]))
+                # bins_mask = torch.nonzero(bins_pred, as_tuple=False)  # Shape [num_edges, 2]
+
+            num_points = 100
             if bins_pred.shape[0]>num_points:
                 point_p = bins_pred[torch.randperm(bins_pred.shape[0])[:num_points]]
             else:
@@ -58,7 +75,6 @@ class Topological_Loss(torch.nn.Module):
                 point_m = bins_mask
 
             pi_pred      = self.vr(point_p.float())
-
             pi_mask      = self.vr(point_m.float())
             topo_loss    =  self.statloss(pi_mask,pi_pred)            
             totalloss   +=topo_loss
@@ -84,13 +100,16 @@ import matplotlib.pyplot as plt
 # We will use the edge detection tensor `edges` from previous steps
 
 def sobel_edge_detection(image):
+
+    device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     sobel_x = torch.tensor([[-1., 0., 1.], 
                             [-2., 0., 2.], 
-                            [-1., 0., 1.]], dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+                            [-1., 0., 1.]], dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(device)
 
     sobel_y = torch.tensor([[-1., -2., -1.], 
                             [ 0.,  0.,  0.], 
-                            [ 1.,  2.,  1.]], dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+                            [ 1.,  2.,  1.]], dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(device)
 
     edge_x = torch.nn.functional.conv2d(image, sobel_x, padding=1)
     edge_y = torch.nn.functional.conv2d(image, sobel_y, padding=1)

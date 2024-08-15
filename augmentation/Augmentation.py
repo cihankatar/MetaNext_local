@@ -43,36 +43,34 @@ def cutout(img,lbl, pad_size, replace,count=1):
         center_h, center_w = torch.randint(high=h, size=(1,)), torch.randint(high=w, size=(1,))
         low_h, high_h = torch.clamp(center_h-pad_size, 0, h).item(), torch.clamp(center_h+pad_size, 0, h).item()
         low_w, high_w = torch.clamp(center_w-pad_size, 0, w).item(), torch.clamp(center_w+pad_size, 0, w).item()
-
         cutout_img[:, low_h:high_h, low_w:high_w] = replace
         cutout_lbl[:, low_h:high_h, low_w:high_w] = replace
+
 
     return cutout_img,cutout_lbl
 
 
-class Cutout(torch.nn.Module):
+def Cutout(images,masks,pr,padsize):
+    replace=0
+    B,Cim,H,W = images.shape[0],images.shape[1],images.shape[2],images.shape[3]
+    B,Cmask,H,W = masks.shape[0],masks.shape[1],masks.shape[2],masks.shape[3]
 
-    def __init__(self, pad_size, replace=0):
-        super().__init__()
-        self.pad_size = int(pad_size)
-        self.replace = replace
+    if torch.rand(1) < pr:
+        cutout_images = []
+        lbls          = []
+        for i in range(images.shape[0]):
+            cutout_image,mask = cutout(images[i],masks[i], padsize, replace)
+            cutout_images.append(cutout_image)
+            lbls.append(mask)
+            if np.count_nonzero(mask) < 500:
+                return images,masks
 
-    def forward(self, images,masks,p):
-        B,Cim,H,W = images.shape[0],images.shape[1],images.shape[2],images.shape[3]
-        B,Cmask,H,W = masks.shape[0],masks.shape[1],masks.shape[2],masks.shape[3]
+        images = torch.concat(cutout_images,dim=0).reshape(B,Cim,H,W)
+        masks = torch.concat(lbls,dim=0).reshape(B,Cmask,H,W)
 
-        if torch.rand(1) < p:
-            cutout_images = []
-            lbls          = []
-            for i in range(images.shape[0]):
-                cutout_image,mask = cutout(images[i],masks[i], self.pad_size, self.replace)
-                cutout_images.append(cutout_image)
-                lbls.append(mask)
-            images = torch.concat(cutout_images,dim=0).reshape(B,Cim,H,W)
-            masks = torch.concat(lbls,dim=0).reshape(B,Cmask,H,W)
-            return images,masks
-        else:
-            return images,masks
+        return images,masks
+    else:
+        return images,masks
         
 
 

@@ -155,7 +155,6 @@ def main():
     TopoLoss                    = Topological_Loss(lam=0.00005, dimension=1).to(device)
 
     scheduler                   = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, config['epochs'], eta_min=config['learningrate']/10, last_epoch=-1)
-    cutout                      = Cutout(args.cutoutpr,args.cutoutbox)
     initialcutoutpr             = args.cutoutpr 
     initialcutmixpr             = args.cutmixpr
     
@@ -206,7 +205,7 @@ def main():
 
             if args.aug:
                 images,labels   = cutmix(images, labels,args.cutmixpr)
-                images,labels   = cutout(images,labels,args.cutoutpr)  
+                images,labels   = Cutout(images,labels,args.cutoutpr,args.cutoutbox)  
 
             if args.mode == "ssl_pretrained" or args.mode =="supervised":
 
