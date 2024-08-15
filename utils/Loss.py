@@ -37,7 +37,7 @@ class Topological_Loss(torch.nn.Module):
 
         for i in range(predictions.shape[0]):
 
-            threshold = 0.2
+            threshold = 0.5
             edges_pred = (predictions[i] > threshold)
             edges_mask = (masks[i] > threshold)
 
