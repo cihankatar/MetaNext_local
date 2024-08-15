@@ -120,7 +120,8 @@ if __name__ == "__main__":
     cutout                      = Cutout(args.cutoutbox)
     TopoLoss                    = Topological_Loss(lam=0.00003, dimension=1).to(device)
 
-
+    args.shuffle = False
+    
     for batch in tqdm(test_loader, desc=f"testing ", leave=False):
         images,labels   = batch                
 

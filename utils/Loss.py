@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 class Topological_Loss(torch.nn.Module):
 
-    def __init__(self, lam=0.00003, dimension=1,point_threshould=5,radius=1,n_points_rate=8,loss_norm=2):
+    def __init__(self, lam=0.00001, dimension=1,point_threshould=5,radius=1,n_points_rate=8,loss_norm=2):
         super().__init__()
 
         self.lam                = lam
@@ -28,45 +28,43 @@ class Topological_Loss(torch.nn.Module):
         self.statloss           = SummaryStatisticLoss()
         
     def forward(self, model_output,labels):
-
-        radius      = self.radius
-        n_points    = self.n_points_rate * radius
-        METHOD      = 'uniform' 
-        totalloss   = 0
-        
-        predictions = sobel_edge_detection(model_output)
+        totalloss = 0
+        predictions = sobel_edge_detection(self.sigmoid_f(model_output))
         masks       = sobel_edge_detection(labels)
-        
-        # Threshold to get binary edges
-        threshold = 0.1
-        edges_preds = (model_output > threshold)
-        edges_masks = (masks > threshold)
+    
+        predictions = torch.squeeze(predictions,dim=1)       
+        masks       = torch.squeeze(masks,dim=1)
 
         for i in range(predictions.shape[0]):
-            edges_pred       = torch.squeeze(edges_preds[i],dim=0)
-            edges_mask       = torch.squeeze(edges_masks[i],dim=0)
+
+            threshold = 0.2
+            edges_pred = (predictions[i] > threshold)
+            edges_mask = (masks[i] > threshold)
+
             # Extract the coordinates of edge points
             bins_pred = torch.nonzero(edges_pred, as_tuple=False)  # Shape [num_edges, 2]
             bins_mask = torch.nonzero(edges_mask, as_tuple=False)  # Shape [num_edges, 2]
 
-            num_points = 600
+            num_points = 300
 
-            if bins_pred.shape[0]>600:
+            if bins_pred.shape[0]>num_points:
                 point_p = bins_pred[torch.randperm(bins_pred.shape[0])[:num_points]]
             else:
                 point_p = bins_pred
 
-            if bins_mask.shape[0]>600:
+            if bins_mask.shape[0]>num_points:
                 point_m = bins_mask[torch.randperm(bins_mask.shape[0])[:num_points]]
             else:
                 point_m = bins_mask
 
             pi_pred      = self.vr(point_p.float())
+
             pi_mask      = self.vr(point_m.float())
-            topo_loss    =  self.statloss(pi_mask,pi_pred)
+            topo_loss    =  self.statloss(pi_mask,pi_pred)            
             totalloss   +=topo_loss
-            
+
         loss        = self.lam * totalloss/predictions.shape[0]
+
         return loss
 
 
