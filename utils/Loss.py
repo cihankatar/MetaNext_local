@@ -39,9 +39,24 @@ class Topological_Loss(torch.nn.Module):
 
         for i in range(predictions.shape[0]):
             
-            p_min = torch.min(predictions[i])
-            p_max = torch.max(predictions[i])
-            normalized_pred = (predictions[i] - p_min) / (p_max - p_min)
+
+            flat_tensor = predictions[i].view(-1)
+
+            hist = torch.histc(flat_tensor, bins=256, min=0.0, max=1.0)
+
+            # Calculate the cumulative distribution function (CDF)
+            cdf = hist.cumsum()
+            cdf = cdf / cdf[-1]  # Normalize the CDF to the range [0, 1]
+
+            # Use the CDF to map the original pixel values to the equalized values
+            equalized_tensor = torch.interp(flat_tensor, torch.linspace(0, 1, steps=256), cdf)
+
+            # Reshape back to the original image shape
+            normalized_pred = equalized_tensor.view( predictions[i].shape)
+        
+            # p_min = torch.min(predictions[i])
+            # p_max = torch.max(predictions[i])
+            # normalized_pred = (predictions[i] - p_min) / (p_max - p_min)
 
             threshold = 0.5
             edges_pred = (normalized_pred > threshold)
