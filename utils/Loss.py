@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch_topological.nn import SignatureLoss,SummaryStatisticLoss
+from torch_topological.nn import SignatureLoss,SummaryStatisticLoss,WassersteinDistance
 from torch_topological.nn import VietorisRipsComplex
 from visualization import *
 from skimage.feature import local_binary_pattern 
@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 class Topological_Loss(torch.nn.Module):
 
-    def __init__(self, lam=0.00001, dimension=1,point_threshould=5,radius=1,n_points_rate=8,loss_norm=2):
+    def __init__(self, lam=0.01, dimension=1,point_threshould=5,radius=1,n_points_rate=8,loss_norm=2):
         super().__init__()
 
         self.lam                = lam
@@ -22,11 +22,12 @@ class Topological_Loss(torch.nn.Module):
         self.dimension          = dimension
         self.loss_norm          = loss_norm
 
-        self.loss               = SignatureLoss(p=self.loss_norm)
         self.sigmoid_f          = nn.Sigmoid()
 
         self.vr                 = VietorisRipsComplex(dim=self.dimension)
-        self.statloss           = SummaryStatisticLoss()
+        #self.statloss           = SummaryStatisticLoss()
+
+        self.statloss           = WassersteinDistance()
         self.mask = create_mask(border_width=10) 
 
         
@@ -35,6 +36,7 @@ class Topological_Loss(torch.nn.Module):
         totalloss = 0
         sobel_predictions   = sobel_edge_detection(model_output)
         sobel_masks         = sobel_edge_detection(labels)
+
         predictions         = torch.squeeze(sobel_predictions,dim=1)       
         masks               = torch.squeeze(sobel_masks,dim=1)
 
@@ -43,6 +45,7 @@ class Topological_Loss(torch.nn.Module):
             edges_pred = (predictions[i] > (torch.mean(predictions[i])+(torch.std(predictions[i]))))
             edges_pred = edges_pred*self.mask 
             edges_mask = (masks[i] > (torch.mean(masks[i])+torch.std(masks[i])))
+
             bins_pred = torch.nonzero(edges_pred, as_tuple=False)  # Shape [num_edges, 2]
             bins_mask = torch.nonzero(edges_mask, as_tuple=False)  # Shape [num_edges, 2]
 
@@ -68,7 +71,6 @@ class Topological_Loss(torch.nn.Module):
         
             pi_pred      = self.vr(point_p.float())
             pi_mask      = self.vr(point_m.float())
-
             topo_loss    =  self.statloss(pi_mask,pi_pred)            
             totalloss   +=topo_loss
 
@@ -76,7 +78,7 @@ class Topological_Loss(torch.nn.Module):
         loss.requires_grad=True
         return loss
 
-def create_mask(border_width=10):
+def create_mask(border_width=5):
     mask = torch.ones(256,256)
     mask[:border_width, :] = 0
     mask[-border_width:, :] = 0
@@ -85,40 +87,10 @@ def create_mask(border_width=10):
     return mask
 
 '''
-            barcod(edges_mask,pi_mask,point_m,edges_pred,pi_pred,point_p,1)
-            barcod(torch.tensor(bins_m),pi_mask,points_m,torch.tensor(bins_p),pi_pred,points_p,1)
-            barcod(masks[i],pi_mask,points_m,predictions[i],pi_pred,points_p,1)
+    barcod(edges_mask,pi_mask,point_m,edges_pred,pi_pred,point_p,1,topo_loss)
+    figures (model_output,sobel_predictions,bins_pred,point_p,labels,sobel_masks,bins_mask,point_m,i,topo_loss)
+    barcod(labels[i][0],pi_mask,point_m,model_output[i][0],pi_pred,point_p,1,topo_loss) 
 
-            
-            plt.figure()
-            plt.subplot(2,4,1)
-            plt.title("model_out")
-            plt.imshow(model_output[i][0].detach().numpy())
-            plt.subplot(2,4,2)
-            plt.title("sobel_predictions")
-            plt.imshow(sobel_predictions[i][0].detach().numpy())
-            plt.subplot(2,4,3)
-            plt.title("bins_pred")
-            plt.scatter(bins_pred[:,0],bins_pred[:,1],s=1)
-            plt.subplot(2,4,4)
-            plt.title("selected_points")
-            plt.scatter(point_p[:,0],point_p[:,1],s=1)
-
-            plt.figure()
-            plt.subplot(2,4,1)
-            plt.title("masks")
-            plt.imshow(labels[i][0].detach().numpy())
-            plt.subplot(2,4,2)
-            plt.title("sobel_predictions")
-            plt.imshow(sobel_masks[i][0].detach().numpy())
-            plt.subplot(2,4,3)
-            plt.title("bins_masks")
-            plt.scatter(bins_mask[:,0],bins_mask[:,1],s=1)
-            plt.subplot(2,4,4)
-            plt.title("selected_points")
-            plt.scatter(point_m[:,0],point_m[:,1],s=1)
-
-            
 ''' 
 
 def sobel_edge_detection(image):
@@ -137,7 +109,6 @@ def sobel_edge_detection(image):
     edge_y = torch.nn.functional.conv2d(image, sobel_y, padding=1)
     edge_magnitude = torch.sqrt(edge_x**2 + edge_y**2)
     return edge_magnitude
-
 
 
 class Dice_CE_Loss():

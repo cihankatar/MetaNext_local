@@ -56,7 +56,7 @@ def trainsample(images,labels,model_output,n):
     plt.subplot(1, 3, 3)
     plt.imshow(prediction)
 
-def barcod(mask,maskh,points_p,predict,predicth,points_m,n):
+def barcod(mask,maskh,points_p,predict,predicth,points_m,topo_loss):
     
     plt.figure()
     plt.subplot(3, 2, 1)
@@ -87,17 +87,21 @@ def barcod(mask,maskh,points_p,predict,predicth,points_m,n):
     plt.axis('scaled')
 
     # homology
-    if maskh[n][1].max()>predicth[n][1].max():
-        x = [0, maskh[n][1].max()]
+    if maskh[1][1].max()>predicth[1][1].max():
+        x = [0, maskh[1][1].max()]
     else:
-        x = [0, predicth[n][1].max()]
+        x = [0, predicth[1][1].max()]
 
     # Plot the diagonal
-    mask     = maskh[n][1].cpu().detach().numpy()
-    predict  = predicth[n][1].cpu().detach().numpy()
+    mask     = maskh[1][1].cpu().detach().numpy()
+    predict  = predicth[1][1].cpu().detach().numpy()
+
+    mask_d0     = maskh[0][1].cpu().detach().numpy()
+    predict_d0  = predicth[0][1].cpu().detach().numpy()
 
     plt.subplot(3, 2, 5)
     plt.scatter(mask[:,0],mask[:,1] ,marker='o',color='black')
+    plt.scatter(mask_d0[:,0],mask_d0[:,1] ,marker='o',color='blue')
     plt.plot(x, x, label='Diagonal',color='red')
     plt.title('Mask Image PH',fontsize = 8)
     plt.xlabel('Birth',fontsize = 8)
@@ -108,8 +112,9 @@ def barcod(mask,maskh,points_p,predict,predicth,points_m,n):
 
     plt.subplot(3, 2, 6)
     plt.scatter(predict[:,0], predict[:,1],marker='o',color='black')
+    plt.scatter(predict_d0[:,0],predict_d0[:,1] ,marker='o',color='blue')
     plt.plot(x, x, label='Diagonal',color='red')
-    plt.title('Prediction Image PH',fontsize = 8)
+    plt.title('Pred PH, loss :{}'.format(np.round(topo_loss)),fontsize = 8)
     plt.xlabel('Birth',fontsize = 8)
     plt.ylabel('Death',fontsize = 8)
     plt.xticks(fontsize=8)
@@ -117,6 +122,34 @@ def barcod(mask,maskh,points_p,predict,predicth,points_m,n):
     plt.axis('scaled')
 
     plt.tight_layout()
+
+def figures (model_output,sobel_predictions,bins_pred,point_p,labels,sobel_masks,bins_mask,point_m,i,topo_loss):
+            plt.figure()
+            plt.subplot(2,4,1)
+            plt.title("model_output")
+            plt.imshow(np.rot90(model_output[i][0].detach().numpy()))
+            plt.subplot(2,4,2)
+            plt.title("sobel_predicted")
+            plt.imshow(np.rot90(sobel_predictions[i][0].detach().numpy()))
+            plt.subplot(2,4,3)
+            plt.title("bins_pred")
+            plt.scatter(bins_pred[:,0],bins_pred[:,1],s=1)
+            plt.subplot(2,4,4)
+            plt.title("selected_points")
+            plt.scatter(point_p[:,0],point_p[:,1],s=1)
+
+            plt.subplot(2,4,5)
+            plt.title("mask")
+            plt.imshow(np.rot90(labels[i][0].detach().numpy()))
+            plt.subplot(2,4,6)
+            plt.title("sobel_mask")
+            plt.imshow(np.rot90(sobel_masks[i][0].detach().numpy()))
+            plt.subplot(2,4,7)
+            plt.title("bins_masks ")
+            plt.scatter(bins_mask[:,0],bins_mask[:,1],s=1)
+            plt.subplot(2,4,8)
+            plt.title("selected_points")
+            plt.scatter(point_m[:,0],point_m[:,1],s=1)
 
 def simclr(images,labels):
     import matplotlib.pyplot as plt
@@ -182,3 +215,4 @@ def simclr(images,labels):
     plt.imshow(label7)
     plt.subplot(2,4,8)
     plt.imshow(label8)
+
