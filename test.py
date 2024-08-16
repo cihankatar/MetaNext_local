@@ -117,8 +117,7 @@ if __name__ == "__main__":
     model.eval()
 
 
-    cutout                      = Cutout(args.cutoutbox)
-    TopoLoss                    = Topological_Loss(lam=0.00003, dimension=1).to(device)
+    TopoLoss                    = Topological_Loss(lam=0.00005, dimension=1).to(device)
 
     args.shuffle = False
     

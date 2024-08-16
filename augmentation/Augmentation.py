@@ -62,8 +62,6 @@ def Cutout(images,masks,pr,padsize):
             cutout_image,mask = cutout(images[i],masks[i], padsize, replace)
             cutout_images.append(cutout_image)
             lbls.append(mask)
-            if np.count_nonzero(mask) < 500:
-                return images,masks
 
         images = torch.concat(cutout_images,dim=0).reshape(B,Cim,H,W)
         masks = torch.concat(lbls,dim=0).reshape(B,Cmask,H,W)

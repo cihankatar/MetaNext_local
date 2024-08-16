@@ -202,11 +202,20 @@ def main():
                 labels=[lab.to(device) for lab in labels] 
             else:
                 images,labels=images.to(device),labels.to(device)
-
+            
+            images_copy = images.clone()
+            labels_copy = labels.clone()
+            
             if args.aug:
                 images,labels   = cutmix(images, labels,args.cutmixpr)
                 images,labels   = Cutout(images,labels,args.cutoutpr,args.cutoutbox)  
-
+            
+                for i in range(labels.shape[0]):
+                    if torch.count_nonzero(labels[i]) < 200:
+                        images = images_copy
+                        labels = labels_copy
+                        break
+            
             if args.mode == "ssl_pretrained" or args.mode =="supervised":
 
                 if args.mode == "ssl_pretrained":
@@ -221,7 +230,7 @@ def main():
                     DiceBCE_loss    = loss_function.Dice_BCE_Loss(model_output, labels)
                     if addtopoloss:
                         topo_loss           = TopoLoss(model_output,labels)
-                        Dice_BCE_Topo_loss  = DiceBCE_loss + topo_loss
+                        Dice_BCE_Topo_loss  =  topo_loss
                         epoch_loss          += Dice_BCE_Topo_loss.item()
                         epoch_topo_loss     += topo_loss.item()
                         epoch_DiceBCEloss   += DiceBCE_loss.item()
@@ -290,7 +299,7 @@ def main():
 
                     if addtopoloss:
                         topo_loss               = TopoLoss(model_output,labels)
-                        Dice_BCE_Topo_loss      = DiceBCE_l+topo_loss
+                        Dice_BCE_Topo_loss      = topo_loss
                         valid_loss             += Dice_BCE_Topo_loss.item() 
                         valid_topo_loss        += topo_loss.item() 
                         valid_dicebce_loss     += DiceBCE_l.item() 
@@ -336,4 +345,4 @@ def main():
     wandb.finish()
 
 if __name__ == "__main__":
-   main()
+    main()

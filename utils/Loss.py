@@ -29,28 +29,28 @@ class Topological_Loss(torch.nn.Module):
         self.statloss           = SummaryStatisticLoss()
         
     def forward(self, model_output,labels):
-        totalloss = 0
 
-        sobel_predictions   = sobel_edge_detection(self.sigmoid_f(model_output))
+        totalloss = 0
+        sobel_predictions   = sobel_edge_detection(model_output)
         sobel_masks         = sobel_edge_detection(labels)
     
         predictions         = torch.squeeze(sobel_predictions,dim=1)       
         masks               = torch.squeeze(sobel_masks,dim=1)
 
         for i in range(predictions.shape[0]):
-
+            
             p_min = torch.min(predictions[i])
             p_max = torch.max(predictions[i])
             normalized_pred = (predictions[i] - p_min) / (p_max - p_min)
 
-            threshold = 0.2
+            threshold = 0.5
             edges_pred = (normalized_pred > threshold)
             edges_mask = (masks[i] > threshold)
 
             # Extract the coordinates of edge points
             bins_pred = torch.nonzero(edges_pred, as_tuple=False)  # Shape [num_edges, 2]
             bins_mask = torch.nonzero(edges_mask, as_tuple=False)  # Shape [num_edges, 2]
-
+            
             if torch.count_nonzero(bins_pred) < 50:
                 print("bin_pred is empty. Numer of points calculated based on mean")
                 print(edges_mask.shape)
@@ -61,9 +61,23 @@ class Topological_Loss(torch.nn.Module):
                 print(bins_mask.unique,edges_mask)
                 print("bin_mask is empty. Numer of points calculated based on mean :")
                 edges_mask = (masks[i] > torch.mean(masks[i]))
-                # bins_mask = torch.nonzero(bins_pred, as_tuple=False)  # Shape [num_edges, 2]
+                bins_mask = torch.nonzero(bins_pred, as_tuple=False)  # Shape [num_edges, 2]
 
             num_points = 100
+            # if bins_pred.shape[0]>num_points:
+            #     interval   = int(bins_pred.shape[0]/100)
+            #     selected_indices = bins_pred[::interval]
+            #     point_p = torch.zeros_like(edges_mask)
+            #     point_p[selected_indices[:, 0], selected_indices[:, 1]] = 1
+            #     point_p = torch.nonzero(point_p, as_tuple=False) 
+
+            # if bins_mask.shape[0]>num_points:
+            #     interval   = int(bins_mask.shape[0]/100)
+            #     selected_indices = bins_mask[::interval]
+            #     point_m = torch.zeros_like(edges_mask)
+            #     point_m[selected_indices[:, 0], selected_indices[:, 1]] = 1
+            #     point_m = torch.nonzero(point_m, as_tuple=False) 
+
             if bins_pred.shape[0]>num_points:
                 point_p = bins_pred[torch.randperm(bins_pred.shape[0])[:num_points]]
             else:
@@ -80,7 +94,7 @@ class Topological_Loss(torch.nn.Module):
             totalloss   +=topo_loss
 
         loss        = self.lam * totalloss/predictions.shape[0]
-
+        loss.requires_grad=True
         return loss
 
 
@@ -88,16 +102,27 @@ class Topological_Loss(torch.nn.Module):
             barcod(edges_mask,pi_mask,point_m,edges_pred,pi_pred,point_p,1)
             barcod(torch.tensor(bin_m),pi_mask,points_m,torch.tensor(bin_p),pi_pred,points_p,1)
             barcod(masks[i],pi_mask,points_m,predictions[i],pi_pred,points_p,1)
-            points_m.shape
-            points_p.shape
+
+            
+            plt.figure()
+            plt.subplot(2,4,1)
+            plt.title("model_out")
+            plt.imshow(model_output[0][0].detach().numpy())
+            plt.subplot(2,4,2)
+            plt.title("sobel_predictions")
+            plt.imshow(sobel_predictions[0][0].detach().numpy())
+            plt.subplot(2,4,3)
+            plt.title("normalized_pred")
+            plt.imshow(normalized_pred.detach().numpy())
+            plt.subplot(2,4,4)
+            plt.title("bins_pred")
+            plt.scatter(bins_pred[:,0],bins_pred[:,1])
+            plt.subplot(2,4,5)
+            plt.title("selected_points")
+            plt.scatter(point_p[:,0],point_p[:,1])
+
+            
 ''' 
-
-
-import torch
-import matplotlib.pyplot as plt
-
-# Assume `grayscale_image` is already loaded and Sobel edges are detected
-# We will use the edge detection tensor `edges` from previous steps
 
 def sobel_edge_detection(image):
 
@@ -172,3 +197,63 @@ class Dice_CE_Loss():
         target   = target.reshape(last_dim).long         #  it will be converted one hot encode in nn.CrossEnt 
 
         return cross_entropy(input,target)
+
+
+
+def circular_lbp(img):
+    """
+    Compute Circular Local Binary Pattern (LBP) for a given image using PyTorch.
+    
+    Parameters:
+    img (torch.Tensor): Input image as a PyTorch tensor of shape (1, H, W).
+    
+    Returns:
+    torch.Tensor: Circular LBP of the image of shape (1, H, W).
+    """
+    h, w = img.shape[1], img.shape[2]
+    
+    # Define the 8 circular neighbors with offsets
+    neighbors = [
+        (-1, 0), (-1, 1), (0, 1), (1, 1),
+        (1, 0), (1, -1), (0, -1), (-1, -1)
+    ]
+    
+    # Prepare an empty tensor for LBP
+    lbp_img = torch.zeros_like(img)
+    
+    # Compute LBP for each neighbor
+    for i, (dy, dx) in enumerate(neighbors):
+        # Use circular shifts
+        neighbor = torch.roll(img, shifts=(dy, dx), dims=(1, 2))
+        lbp_img += (neighbor >= img) * (1 << i)
+    
+    return lbp_img
+
+
+'''
+            lbf_out   = circular_lbp(labels[i]).squeeze()
+            p_min = torch.min(lbf_out)
+            p_max = torch.max(lbf_out)
+            normalized_mask = 1-(lbf_out - p_min) / (p_max - p_min)     
+            edges_mask = (normalized_mask > 0.5)
+            bins_mask = torch.nonzero(edges_mask, as_tuple=False)  # Shape [num_edges, 2]
+
+            lbf_out   = circular_lbp(model_output[i]).squeeze()
+            p_min = torch.min(lbf_out)
+            p_max = torch.max(lbf_out)
+            normalized_pred = 1-(lbf_out - p_min) / (p_max - p_min)     
+            edges_pred = (normalized_pred > 0.5)
+            bins_pred = torch.nonzero(edges_pred, as_tuple=False)  # Shape [num_edges, 2]
+
+            num_points = 200
+            if bins_pred.shape[0]>num_points:
+                point_p = bins_pred[torch.randperm(bins_pred.shape[0])[:num_points]]
+            else:
+                point_p = bins_pred
+
+            if bins_mask.shape[0]>num_points:
+                point_m = bins_mask[torch.randperm(bins_mask.shape[0])[:num_points]]
+            else:
+                point_m = bins_mask
+
+'''
