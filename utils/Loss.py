@@ -27,84 +27,48 @@ class Topological_Loss(torch.nn.Module):
 
         self.vr                 = VietorisRipsComplex(dim=self.dimension)
         self.statloss           = SummaryStatisticLoss()
+        self.mask = create_mask(border_width=10) 
+
         
     def forward(self, model_output,labels):
 
         totalloss = 0
         sobel_predictions   = sobel_edge_detection(model_output)
         sobel_masks         = sobel_edge_detection(labels)
-    
         predictions         = torch.squeeze(sobel_predictions,dim=1)       
         masks               = torch.squeeze(sobel_masks,dim=1)
 
         for i in range(predictions.shape[0]):
             
-
-            flat_tensor = predictions[i].view(-1)
-
-            hist = torch.histc(flat_tensor, bins=256, min=0.0, max=1.0)
-
-            # Calculate the cumulative distribution function (CDF)
-            cdf = hist.cumsum()
-            cdf = cdf / cdf[-1]  # Normalize the CDF to the range [0, 1]
-
-            # Use the CDF to map the original pixel values to the equalized values
-            equalized_tensor = torch.interp(flat_tensor, torch.linspace(0, 1, steps=256), cdf)
-
-            # Reshape back to the original image shape
-            normalized_pred = equalized_tensor.view( predictions[i].shape)
-        
-            # p_min = torch.min(predictions[i])
-            # p_max = torch.max(predictions[i])
-            # normalized_pred = (predictions[i] - p_min) / (p_max - p_min)
-
-            threshold = 0.5
-            edges_pred = (normalized_pred > threshold)
-            edges_mask = (masks[i] > threshold)
-
-            # Extract the coordinates of edge points
+            edges_pred = (predictions[i] > (torch.mean(predictions[i])+(torch.std(predictions[i]))))
+            edges_pred = edges_pred*self.mask 
+            edges_mask = (masks[i] > (torch.mean(masks[i])+torch.std(masks[i])))
             bins_pred = torch.nonzero(edges_pred, as_tuple=False)  # Shape [num_edges, 2]
             bins_mask = torch.nonzero(edges_mask, as_tuple=False)  # Shape [num_edges, 2]
-            
-            if torch.count_nonzero(bins_pred) < 50:
-                print("bin_pred is empty. Numer of points calculated based on mean")
-                print(edges_mask.shape)
-                edges_pred = (normalized_pred > torch.mean(normalized_pred))
-                bins_pred = torch.nonzero(edges_pred, as_tuple=False)  
 
-            if torch.count_nonzero(bins_mask) < 50:
-                print(bins_mask.unique,edges_mask)
-                print("bin_mask is empty. Numer of points calculated based on mean :")
+            if bins_pred.shape[0] < 5:
+                print("No predictions to get PH, threshould set to mean")
+                edges_pred = (predictions[i] > torch.mean(predictions[i]))
+                bins_pred = torch.nonzero(edges_pred, as_tuple=False)  # Shape [num_edges, 2]
+            
+            if bins_pred.shape[0] < 5:
+                print("No masks to get PH, threshould set to mean")
                 edges_mask = (masks[i] > torch.mean(masks[i]))
-                bins_mask = torch.nonzero(bins_pred, as_tuple=False)  # Shape [num_edges, 2]
+                bins_mask = torch.nonzero(edges_mask, as_tuple=False)  # Shape [num_edges, 2]
 
             num_points = 100
-            # if bins_pred.shape[0]>num_points:
-            #     interval   = int(bins_pred.shape[0]/100)
-            #     selected_indices = bins_pred[::interval]
-            #     point_p = torch.zeros_like(edges_mask)
-            #     point_p[selected_indices[:, 0], selected_indices[:, 1]] = 1
-            #     point_p = torch.nonzero(point_p, as_tuple=False) 
-
-            # if bins_mask.shape[0]>num_points:
-            #     interval   = int(bins_mask.shape[0]/100)
-            #     selected_indices = bins_mask[::interval]
-            #     point_m = torch.zeros_like(edges_mask)
-            #     point_m[selected_indices[:, 0], selected_indices[:, 1]] = 1
-            #     point_m = torch.nonzero(point_m, as_tuple=False) 
-
             if bins_pred.shape[0]>num_points:
                 point_p = bins_pred[torch.randperm(bins_pred.shape[0])[:num_points]]
             else:
                 point_p = bins_pred
-
             if bins_mask.shape[0]>num_points:
                 point_m = bins_mask[torch.randperm(bins_mask.shape[0])[:num_points]]
             else:
                 point_m = bins_mask
-
+        
             pi_pred      = self.vr(point_p.float())
             pi_mask      = self.vr(point_m.float())
+
             topo_loss    =  self.statloss(pi_mask,pi_pred)            
             totalloss   +=topo_loss
 
@@ -112,29 +76,47 @@ class Topological_Loss(torch.nn.Module):
         loss.requires_grad=True
         return loss
 
+def create_mask(border_width=10):
+    mask = torch.ones(256,256)
+    mask[:border_width, :] = 0
+    mask[-border_width:, :] = 0
+    mask[:, :border_width] = 0
+    mask[:, -border_width:] = 0
+    return mask
 
 '''
             barcod(edges_mask,pi_mask,point_m,edges_pred,pi_pred,point_p,1)
-            barcod(torch.tensor(bin_m),pi_mask,points_m,torch.tensor(bin_p),pi_pred,points_p,1)
+            barcod(torch.tensor(bins_m),pi_mask,points_m,torch.tensor(bins_p),pi_pred,points_p,1)
             barcod(masks[i],pi_mask,points_m,predictions[i],pi_pred,points_p,1)
 
             
             plt.figure()
             plt.subplot(2,4,1)
             plt.title("model_out")
-            plt.imshow(model_output[0][0].detach().numpy())
+            plt.imshow(model_output[i][0].detach().numpy())
             plt.subplot(2,4,2)
             plt.title("sobel_predictions")
-            plt.imshow(sobel_predictions[0][0].detach().numpy())
+            plt.imshow(sobel_predictions[i][0].detach().numpy())
             plt.subplot(2,4,3)
-            plt.title("normalized_pred")
-            plt.imshow(normalized_pred.detach().numpy())
-            plt.subplot(2,4,4)
             plt.title("bins_pred")
-            plt.scatter(bins_pred[:,0],bins_pred[:,1])
-            plt.subplot(2,4,5)
+            plt.scatter(bins_pred[:,0],bins_pred[:,1],s=1)
+            plt.subplot(2,4,4)
             plt.title("selected_points")
-            plt.scatter(point_p[:,0],point_p[:,1])
+            plt.scatter(point_p[:,0],point_p[:,1],s=1)
+
+            plt.figure()
+            plt.subplot(2,4,1)
+            plt.title("masks")
+            plt.imshow(labels[i][0].detach().numpy())
+            plt.subplot(2,4,2)
+            plt.title("sobel_predictions")
+            plt.imshow(sobel_masks[i][0].detach().numpy())
+            plt.subplot(2,4,3)
+            plt.title("bins_masks")
+            plt.scatter(bins_mask[:,0],bins_mask[:,1],s=1)
+            plt.subplot(2,4,4)
+            plt.title("selected_points")
+            plt.scatter(point_m[:,0],point_m[:,1],s=1)
 
             
 ''' 
@@ -272,3 +254,32 @@ def circular_lbp(img):
                 point_m = bins_mask
 
 '''
+'''
+
+            if torch.count_nonzero(bins_pred) < 50:
+                print("bin_pred is empty. Numer of points calculated based on mean")
+                print(edges_mask.shape)
+                edges_pred = (predictions[i] > torch.mean(predictions[i]))
+                bins_pred = torch.nonzero(edges_pred, as_tuple=False)  
+
+            if torch.count_nonzero(bins_mask) < 50:
+                print(bins_mask.unique,edges_mask)
+                print("bin_mask is empty. Numer of points calculated based on mean :")
+                edges_mask = (masks[i] > torch.mean(masks[i]))
+                bins_mask = torch.nonzero(bins_pred, as_tuple=False)  # Shape [num_edges, 2]
+
+            if bins_pred.shape[0]>num_points:
+                interval   = int(bins_pred.shape[0]/100)
+                selected_indices = bins_pred[::interval]
+                point_p = torch.zeros_like(edges_mask)
+                point_p[selected_indices[:, 0], selected_indices[:, 1]] = 1
+                point_p = torch.nonzero(point_p, as_tuple=False) 
+
+            if bins_mask.shape[0]>num_points:
+                interval   = int(bins_mask.shape[0]/100)
+                selected_indices = bins_mask[::interval]
+                point_m = torch.zeros_like(edges_mask)
+                point_m[selected_indices[:, 0], selected_indices[:, 1]] = 1
+                point_m = torch.nonzero(point_m, as_tuple=False) 
+
+                '''
