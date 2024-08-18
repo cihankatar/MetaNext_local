@@ -21,29 +21,28 @@ class Topological_Loss(torch.nn.Module):
         self.n_points_rate      = n_points_rate
         self.dimension          = dimension
         self.loss_norm          = loss_norm
-
         self.sigmoid_f          = nn.Sigmoid()
-
         self.vr                 = VietorisRipsComplex(dim=self.dimension)
-        #self.statloss           = SummaryStatisticLoss()
+        self.vrdim0                 = VietorisRipsComplex(dim=0)
+        self.statloss           = SummaryStatisticLoss(sigma=1)
+        self.wloss              = WassersteinDistance()
 
-        self.statloss           = WassersteinDistance()
-        self.mask = create_mask(border_width=10) 
+        self.mask               = create_mask(border_width=5) 
 
         
     def forward(self, model_output,labels):
 
         totalloss = 0
-        sobel_predictions   = sobel_edge_detection(model_output)
+        sobel_predictions   = sobel_edge_detection(self.sigmoid_f(model_output))
         sobel_masks         = sobel_edge_detection(labels)
 
         predictions         = torch.squeeze(sobel_predictions,dim=1)       
         masks               = torch.squeeze(sobel_masks,dim=1)
 
         for i in range(predictions.shape[0]):
-            
+
+            predictions[i]=predictions[i]*self.mask 
             edges_pred = (predictions[i] > (torch.mean(predictions[i])+(torch.std(predictions[i]))))
-            edges_pred = edges_pred*self.mask 
             edges_mask = (masks[i] > (torch.mean(masks[i])+torch.std(masks[i])))
 
             bins_pred = torch.nonzero(edges_pred, as_tuple=False)  # Shape [num_edges, 2]
@@ -71,7 +70,14 @@ class Topological_Loss(torch.nn.Module):
         
             pi_pred      = self.vr(point_p.float())
             pi_mask      = self.vr(point_m.float())
+
+            pi_pred_dim0      = self.vrdim0(point_p.float())
+            pi_mask_dim0      = self.vrdim0(point_m.float())
+            topo_loss_dim0    =  self.statloss(pi_mask_dim0,pi_pred_dim0)            
+            w_loss_dim0       =  self.wloss(pi_mask_dim0,pi_pred_dim0) 
+
             topo_loss    =  self.statloss(pi_mask,pi_pred)            
+            w_loss       =  self.wloss(pi_mask,pi_pred)    
             totalloss   +=topo_loss
 
         loss        = self.lam * totalloss/predictions.shape[0]
@@ -87,7 +93,7 @@ def create_mask(border_width=5):
     return mask
 
 '''
-    barcod(edges_mask,pi_mask,point_m,edges_pred,pi_pred,point_p,1,topo_loss)
+    barcod(edges_mask,pi_mask,point_m,edges_pred,pi_pred,point_p,topo_loss,w_loss,topo_loss_dim0,w_loss_dim0)
     figures (model_output,sobel_predictions,bins_pred,point_p,labels,sobel_masks,bins_mask,point_m,i,topo_loss)
     barcod(labels[i][0],pi_mask,point_m,model_output[i][0],pi_pred,point_p,1,topo_loss) 
 

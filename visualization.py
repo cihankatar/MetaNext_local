@@ -7,8 +7,8 @@ def testsample(images, labels, prediction,n):
     rand_idx = n #np.random.randint(batch_size)
     prediction    = prediction[rand_idx]        ## (1, 512, 512)
     prediction    = np.squeeze(prediction)     ## (512, 512)
-    # prediction    = prediction > 0.5
-    # prediction    = np.array(prediction, dtype=np.uint8)
+    #prediction    = prediction > 0.5
+    #prediction    = np.array(prediction, dtype=np.uint8)
     prediction    = np.transpose(prediction)
 
     im_test       = np.array(images[rand_idx]*255,dtype=int)
@@ -56,7 +56,7 @@ def trainsample(images,labels,model_output,n):
     plt.subplot(1, 3, 3)
     plt.imshow(prediction)
 
-def barcod(mask,maskh,points_p,predict,predicth,points_m,topo_loss):
+def barcod(mask,maskh,points_p,predict,predicth,points_m,topo_loss,w_loss,topo_lossdim0,w_lossdim0):
     
     plt.figure()
     plt.subplot(3, 2, 1)
@@ -75,24 +75,24 @@ def barcod(mask,maskh,points_p,predict,predicth,points_m,topo_loss):
     plt.subplot(3, 2, 3)
     plt.scatter(points_p[:,0],points_p[:,1] ,s=1)
     plt.title('Extracted Points of Mask Image',fontsize = 8)
+    plt.title('points_mask, w_lossdim0 :{}'.format(np.round(w_lossdim0)),fontsize = 8)
+
     plt.xticks(fontsize=8)
     plt.yticks(fontsize=8,rotation=90)
     plt.axis('scaled')
 
     plt.subplot(3, 2, 4)
     plt.scatter(points_m[:,0],points_m[:,1] ,s=1)
-    plt.title('Extracted Points of Predicted Image',fontsize = 8)
+    plt.title('points_pred topolossdim0 :{}'.format(np.round(topo_lossdim0)),fontsize = 8)
     plt.xticks(fontsize=8)
     plt.yticks(fontsize=8,rotation=90)
     plt.axis('scaled')
 
-    # homology
     if maskh[1][1].max()>predicth[1][1].max():
         x = [0, maskh[1][1].max()]
     else:
         x = [0, predicth[1][1].max()]
 
-    # Plot the diagonal
     mask     = maskh[1][1].cpu().detach().numpy()
     predict  = predicth[1][1].cpu().detach().numpy()
 
@@ -103,7 +103,7 @@ def barcod(mask,maskh,points_p,predict,predicth,points_m,topo_loss):
     plt.scatter(mask[:,0],mask[:,1] ,marker='o',color='black')
     plt.scatter(mask_d0[:,0],mask_d0[:,1] ,marker='o',color='blue')
     plt.plot(x, x, label='Diagonal',color='red')
-    plt.title('Mask Image PH',fontsize = 8)
+    plt.title('Mask PH, wassloss :{}'.format(np.round(w_loss)),fontsize = 8)
     plt.xlabel('Birth',fontsize = 8)
     plt.ylabel('Death',fontsize = 8)
     plt.xticks(fontsize=8)
@@ -114,7 +114,7 @@ def barcod(mask,maskh,points_p,predict,predicth,points_m,topo_loss):
     plt.scatter(predict[:,0], predict[:,1],marker='o',color='black')
     plt.scatter(predict_d0[:,0],predict_d0[:,1] ,marker='o',color='blue')
     plt.plot(x, x, label='Diagonal',color='red')
-    plt.title('Pred PH, loss :{}'.format(np.round(topo_loss)),fontsize = 8)
+    plt.title('Pred PH, statloss :{}'.format(np.round(topo_loss)),fontsize = 8)
     plt.xlabel('Birth',fontsize = 8)
     plt.ylabel('Death',fontsize = 8)
     plt.xticks(fontsize=8)
