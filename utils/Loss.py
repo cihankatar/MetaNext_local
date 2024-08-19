@@ -7,6 +7,27 @@ from torch_topological.nn import VietorisRipsComplex
 from visualization import *
 from skimage.feature import local_binary_pattern 
 import matplotlib.pyplot as plt
+from persim import PersLandscapeApprox
+
+
+
+from scipy.integrate import quad
+from scipy.spatial.distance import euclidean
+
+def landscape_distance(landscape1, landscape2, p=2):
+    # Ensure both landscapes have the same sampling points
+    t_values = np.linspace(min(landscape1.grid), max(landscape1.grid), len(landscape1.grid))
+
+    # Compute L2 distance between the landscapes at each level
+    distances = []
+    for level in range(min(len(landscape1.values), len(landscape2.values))):
+        f = lambda t: abs(landscape1(level, t) - landscape2(level, t)) ** p
+        dist, _ = quad(f, min(t_values), max(t_values))
+        distances.append(dist)
+
+    # Aggregate the distances (e.g., using the Euclidean distance)
+    return np.sum(distances) ** (1 / p)
+
 
 #import gudhi as gd
 
@@ -23,10 +44,7 @@ class Topological_Loss(torch.nn.Module):
         self.loss_norm          = loss_norm
         self.sigmoid_f          = nn.Sigmoid()
         self.vr                 = VietorisRipsComplex(dim=self.dimension)
-        self.vrdim0                 = VietorisRipsComplex(dim=0)
-        self.statloss           = SummaryStatisticLoss(sigma=1)
-        self.wloss              = WassersteinDistance()
-
+        self.statloss           = WassersteinDistance(p=2)
         self.mask               = create_mask(border_width=5) 
 
         
@@ -70,14 +88,14 @@ class Topological_Loss(torch.nn.Module):
         
             pi_pred      = self.vr(point_p.float())
             pi_mask      = self.vr(point_m.float())
-
-            pi_pred_dim0      = self.vrdim0(point_p.float())
-            pi_mask_dim0      = self.vrdim0(point_m.float())
-            topo_loss_dim0    =  self.statloss(pi_mask_dim0,pi_pred_dim0)            
-            w_loss_dim0       =  self.wloss(pi_mask_dim0,pi_pred_dim0) 
-
+            
             topo_loss    =  self.statloss(pi_mask,pi_pred)            
-            w_loss       =  self.wloss(pi_mask,pi_pred)    
+
+
+            landscape1 = PersLandscapeApprox(dgms=pi_mask[1], hom_deg=0)
+            landscape2 = PersLandscapeApprox(dgms=pi_pred[1], hom_deg=0)
+            distance = landscape_distance(landscape1, landscape2, p=2)
+
             totalloss   +=topo_loss
 
         loss        = self.lam * totalloss/predictions.shape[0]
