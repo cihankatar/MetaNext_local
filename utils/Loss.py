@@ -16,7 +16,7 @@ from scipy.spatial.distance import euclidean
 
 def landscape_distance(landscape1, landscape2, p=2):
     # Ensure both landscapes have the same sampling points
-    t_values = np.linspace(min(landscape1.grid), max(landscape1.grid), len(landscape1.grid))
+    t_values = np.linspace(min(landscape1), max(landscape1), len(landscape1))
 
     # Compute L2 distance between the landscapes at each level
     distances = []
