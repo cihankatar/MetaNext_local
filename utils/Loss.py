@@ -103,12 +103,14 @@ class Topological_Loss(torch.nn.Module):
         return loss
 
 def create_mask(border_width=5):
+    device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     mask = torch.ones(256,256)
     mask[:border_width, :] = 0
     mask[-border_width:, :] = 0
     mask[:, :border_width] = 0
     mask[:, -border_width:] = 0
-    return mask
+    return mask.to(device)
 
 '''
     barcod(edges_mask,pi_mask,point_m,edges_pred,pi_pred,point_p,topo_loss,w_loss,topo_loss_dim0,w_loss_dim0)

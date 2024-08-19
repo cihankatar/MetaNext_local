@@ -211,7 +211,7 @@ def main():
                 images,labels   = Cutout(images,labels,args.cutoutpr,args.cutoutbox)  
             
                 for i in range(labels.shape[0]):
-                    if torch.count_nonzero(labels[i]) < 200:
+                    if torch.count_nonzero(labels[i]) < 100:
                         images = images_copy
                         labels = labels_copy
                         break
