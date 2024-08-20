@@ -56,7 +56,7 @@ def trainsample(images,labels,model_output,n):
     plt.subplot(1, 3, 3)
     plt.imshow(prediction)
 
-def barcod(mask,maskh,points_p,predict,predicth,points_m,topo_loss,w_loss,topo_lossdim0,w_lossdim0):
+def barcod(mask,maskh,points_p,predict,predicth,points_m,topo_loss):
    
     plt.figure()
 
@@ -74,14 +74,14 @@ def barcod(mask,maskh,points_p,predict,predicth,points_m,topo_loss,w_loss,topo_l
 
     plt.subplot(3,2,4)
     plt.scatter(points_m[:,0],points_m[:,1] ,s=1)
-    plt.title('Selected Points MI - topolossdim0 :{}'.format(np.round(topo_lossdim0)),fontsize = 8)
+    plt.title('Selected Points MI',fontsize = 8)
     plt.xticks(fontsize=8)
     plt.yticks(fontsize=8,rotation=90)
     plt.axis('scaled')
 
     plt.subplot(3,2,3)
     plt.scatter(points_p[:,0],points_p[:,1] ,s=1)
-    plt.title('Selected Points MP - w_lossdim0 :{}'.format(np.round(w_lossdim0)),fontsize = 8)
+    plt.title('Selected Points MP ',fontsize = 8)
     plt.xticks(fontsize=8)
     plt.yticks(fontsize=8,rotation=90)
     plt.axis('scaled')
@@ -101,7 +101,7 @@ def barcod(mask,maskh,points_p,predict,predicth,points_m,topo_loss,w_loss,topo_l
     h0=plt.scatter(mi[:,0],mi[:,1] ,marker='o',color='red',s=25)
     h1=plt.scatter(mask_d0[:,0],mask_d0[:,1] ,marker='o',color='blue',s=25)
     plt.plot(x, x, label='Diagonal',color='black')
-    plt.title('Persistence Diagram MI, wassloss :{}'.format(np.round(w_loss)),fontsize = 8)
+    plt.title('Persistence Diagram MI',fontsize = 8)
     plt.xlabel('Birth Time',fontsize = 8)
     plt.ylabel('Death Time',fontsize = 8)
     plt.xticks(fontsize=8)
@@ -113,7 +113,7 @@ def barcod(mask,maskh,points_p,predict,predicth,points_m,topo_loss,w_loss,topo_l
     h0=plt.scatter(pi[:,0], pi[:,1],marker='o',color='red',s=25)
     h1=plt.scatter(predict_d0[:,0],predict_d0[:,1] ,marker='o',color='blue',s=25)
     plt.plot(x, x, label='Diagonal',color='black')
-    plt.title('Persistence Diagram MP, statloss :{}'.format(np.round(topo_loss)),fontsize = 8)
+    plt.title('Persistence Diagram MP, loss :{}'.format(np.round(topo_loss)),fontsize = 8)
     plt.xlabel('Birth Time',fontsize = 8)
     plt.ylabel('Death Time',fontsize = 8)
     plt.xticks(fontsize=8)
