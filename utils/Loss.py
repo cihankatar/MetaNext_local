@@ -35,55 +35,24 @@ class Topological_Loss(torch.nn.Module):
 
         totalloss = 0
         model_sigmoid_o     = self.sigmoid_f(model_output)
-        sobel_predictions   = model_sigmoid_o
-        sobel_masks         = labels
+        sobel_predictions   = sobel_edge_detection(model_sigmoid_o)
+        sobel_masks         = sobel_edge_detection(labels)
         predictions         = torch.squeeze(sobel_predictions,dim=1).to(self.device )       
-        masks               = torch.squeeze(sobel_masks,dim=1).to(self.device )
+        masks               = torch.squeeze(sobel_masks,dim=1).to(self.device)
         for i in range(predictions.shape[0]):
-
+            predictions[i]=predictions[i]*self.mask 
             prediction  = (predictions[i] - predictions[i].min()) / (predictions[i].max() - predictions[i].min())
-            predictions_q  = torch.round(prediction  * 10) / 10
-            masks_q  = torch.round(masks[i]  * 10) / 10
 
+            #mask        = (masks[i] - masks[i].min()) / (masks[i].max() - masks[i].min())
+            # predictions_q  = torch.round(prediction  * 10) / 10
+            # masks_q  = torch.round(masks[i]  * 10) / 10
+            edges_mask = (masks[i] > (torch.mean(masks[i])+torch.std(masks[i])))
+            edges_pred = (prediction > (torch.mean(prediction)+torch.std(prediction)))
+            bins_pred = torch.nonzero(edges_pred, as_tuple=False).float()
+            bins_mask = torch.nonzero(edges_mask, as_tuple=False).float()  
+            bins_pred = torch.tensor(bins_pred,requires_grad=True)
+            bins_mask = torch.tensor(bins_mask,requires_grad=True)
 
-            # mask        = (masks[i] - masks[i].min()) / (masks[i].max() - masks[i].min())
-            # sharpness = 10.0  # Increase for sharper thresholding
-            # mean_val = torch.mean(predictions[i])
-            # std_val = torch.std(predictions[i])
-            # threshold = mean_val + std_val
-            # edges_pred = torch.sigmoid(sharpness * (predictions[i] - threshold))
-
-            # edge_tensor = edges_pred.unsqueeze(0).unsqueeze(0)
-            # # Step 2: Apply a Differentiable Edge Detection (Sobel Filter)
-            # sobel_x = torch.tensor([[-1., 0., 1.], [-2., 0., 2.], [-1., 0., 1.]])
-            # sobel_y = torch.tensor([[-1., -2., -1.], [0., 0., 0.], [1., 2., 1.]])
-            # sobel_x = sobel_x.view(1, 1, 3, 3)  # Reshape for convolution
-            # sobel_y = sobel_y.view(1, 1, 3, 3)
-
-            # grad_x = F.conv2d(edge_tensor, sobel_x, padding=1)
-            # grad_y = F.conv2d(edge_tensor, sobel_y, padding=1)
-
-            # # Step 3: Calculate Gradient Magnitude (Edge Strength)
-            # grad_magnitude = torch.sqrt(grad_x**2 + grad_y**2)
-            # grad_magnitude = grad_magnitude.squeeze()
-
-            # edge_coords = torch.nonzero(edges_pred)
-
-            # # Step 5: Normalize Coordinates and Store as Tensors
-            # x_coords = edge_coords[:, 1].float() / prediction.shape[1]
-            # y_coords = edge_coords[:, 0].float() / prediction.shape[0]
-            # normalized_coords = torch.stack([x_coords, y_coords], dim=1)
-
-            # # Step 6: Compute Gradients with Respect to Coordinates
-            # grad_x_at_edges = grad_x.squeeze()[edge_coords[:, 0], edge_coords[:, 1]]
-            # grad_y_at_edges = grad_y.squeeze()[edge_coords[:, 0], edge_coords[:, 1]]
-
-            # # Combine coordinates with gradients
-            # result = torch.stack([x_coords, y_coords, grad_x_at_edges, grad_y_at_edges], dim=1)
-
-
-
-            # predictions[i]=predictions[i]*self.mask 
             # edges_pred = (predictions[i] > torch.mean(predictions[i])+torch.std(predictions[i]))
             # edges_mask = (masks[i] > torch.mean(masks[i])+torch.std(masks[i]))
 
@@ -110,48 +79,46 @@ class Topological_Loss(torch.nn.Module):
             # # else:
             # #     point_m = bins_mask
 
-            # num_points = 100
-            # min_pred = bins_pred.min(dim=0).values
-            # max_pred = bins_pred.max(dim=0).values
-            # min_mask = bins_mask.min(dim=0).values
-            # max_mask = bins_mask.max(dim=0).values
-            # bounding_box_pred = torch.prod(max_pred - min_pred)
-            # bounding_box_mask = torch.prod(max_mask - min_mask)
-            # estimated_grid_pred = bounding_box_pred / num_points
-            # estimated_grid_mask = bounding_box_mask / num_points
-            # grid_size1 = torch.sqrt(estimated_grid_pred)
-            # grid_size2 = torch.sqrt(estimated_grid_mask)
+            num_points = 100
+            min_pred = bins_pred.min(dim=0).values
+            max_pred = bins_pred.max(dim=0).values
+            min_mask = bins_mask.min(dim=0).values
+            max_mask = bins_mask.max(dim=0).values
+            bounding_box_pred = torch.prod(max_pred - min_pred)
+            bounding_box_mask = torch.prod(max_mask - min_mask)
+            estimated_grid_pred = bounding_box_pred / num_points
+            estimated_grid_mask = bounding_box_mask / num_points
+            grid_size1 = torch.sqrt(estimated_grid_pred)
+            grid_size2 = torch.sqrt(estimated_grid_mask)
 
-            # if bins_pred.shape[0]>num_points:
-            #     grid_indices    = (bins_pred // grid_size1).int()
-            #     unique_indices, inverse_indices = torch.unique(grid_indices, dim=0, return_inverse=True)
-            #     point_p         = torch.zeros_like(unique_indices, dtype=torch.float32)
-            #     counts          = torch.bincount(inverse_indices)
-            #     counts          = counts.float()
-            #     sums            = torch.zeros_like(point_p)
-            #     sums.index_add_(0, inverse_indices, bins_pred.float())
-            #     point_p = sums / counts.unsqueeze(1)
-            # else:
-            #     point_p = bins_pred
+            if bins_pred.shape[0]>num_points:
+                grid_indices    = (bins_pred // grid_size1).int()
+                unique_indices, inverse_indices = torch.unique(grid_indices, dim=0, return_inverse=True)
+                point_p         = torch.zeros_like(unique_indices, dtype=torch.float32)
+                counts          = torch.bincount(inverse_indices)
+                counts          = counts.float()
+                sums            = torch.zeros_like(point_p)
+                sums.index_add_(0, inverse_indices, bins_pred.float())
+                point_p = sums / counts.unsqueeze(1)
+            else:
+                point_p = bins_pred
             
-            # if bins_mask.shape[0]>num_points:
+            if bins_mask.shape[0]>num_points:
 
-            #     grid_indices    = (bins_mask // grid_size2).int()
-            #     unique_indices, inverse_indices = torch.unique(grid_indices, dim=0, return_inverse=True)
-            #     point_m         = torch.zeros_like(unique_indices, dtype=torch.float32)
-            #     counts          = torch.bincount(inverse_indices)
-            #     counts          = counts.float()
-            #     sums            = torch.zeros_like(point_m)
-            #     sums.index_add_(0, inverse_indices, bins_mask.float())
-            #     point_m = sums / counts.unsqueeze(1)
+                grid_indices    = (bins_mask // grid_size2).int()
+                unique_indices, inverse_indices = torch.unique(grid_indices, dim=0, return_inverse=True)
+                point_m         = torch.zeros_like(unique_indices, dtype=torch.float32)
+                counts          = torch.bincount(inverse_indices)
+                counts          = counts.float()
+                sums            = torch.zeros_like(point_m)
+                sums.index_add_(0, inverse_indices, bins_mask.float())
+                point_m = sums / counts.unsqueeze(1)
 
-            # else:
-            #     point_m = bins_mask
+            else:
+                point_m = bins_mask
     
-            
-            pi_pred     = self.cubicalcomplex(predictions_q)
-            pi_mask     = self.cubicalcomplex(masks_q)
-
+            pi_pred     = self.vr(point_p)
+            pi_mask     = self.vr(point_m)
             topo_loss   = self.wloss(pi_mask,pi_pred)             
             totalloss   +=topo_loss
         loss        = self.lam * totalloss/predictions.shape[0]
