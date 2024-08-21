@@ -155,12 +155,11 @@ def create_mask(border_width=5):
 
 ''' 
 
-
 def soft_point_cloud_extraction(sobel_edges, temperature=1.0):
     # Create a grid of coordinates that correspond to pixel locations
     device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    grid_x, grid_y = torch.meshgrid(torch.arange(sobel_edges.size(0)), torch.arange(sobel_edges.size(1)), indexing='ij').to(device)
+    grid_x, grid_y = torch.meshgrid(torch.arange(sobel_edges.size(0)), torch.arange(sobel_edges.size(1)), indexing='ij')
     
     # Stack the grid to create a list of coordinates (Nx2)
     coords = torch.stack([grid_x, grid_y], dim=2).reshape(-1, 2).float().to(device)
@@ -182,8 +181,6 @@ def soft_point_cloud_extraction(sobel_edges, temperature=1.0):
         soft_point_cloud = (selected_coords* weights)
 
     return soft_point_cloud
-
-
 
 
 def compute_scale_factor(point_cloud):
