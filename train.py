@@ -152,7 +152,7 @@ def main():
     best_valid_loss             = float("inf")
     optimizer                   = Adam(model.parameters(), lr=config['learningrate'])
     loss_function               = Dice_CE_Loss()
-    TopoLoss                    = Topological_Loss(lam=0.1, dimension=1).to(device)
+    TopoLoss                    = Topological_Loss(lam=0.002, dimension=1).to(device)
 
     scheduler                   = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, config['epochs'], eta_min=config['learningrate']/10, last_epoch=-1)
     initialcutoutpr             = args.cutoutpr 
@@ -242,7 +242,6 @@ def main():
                 epoch_loss          += train_loss.item() 
 
             optimizer.zero_grad()
-
             if addtopoloss:
                 Dice_BCE_Topo_loss.backward()
             else:

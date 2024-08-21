@@ -40,43 +40,41 @@ class Topological_Loss(torch.nn.Module):
         predictions         = torch.squeeze(sobel_predictions,dim=1).to(self.device )       
         masks               = torch.squeeze(sobel_masks,dim=1).to(self.device)
         for i in range(predictions.shape[0]):
-            predictions[i]=predictions[i]*self.mask 
+
             prediction  = (predictions[i] - predictions[i].min()) / (predictions[i].max() - predictions[i].min())
-
-            #mask        = (masks[i] - masks[i].min()) / (masks[i].max() - masks[i].min())
             # predictions_q  = torch.round(prediction  * 10) / 10
-            # masks_q  = torch.round(masks[i]  * 10) / 10
-            edges_mask = (masks[i] > (torch.mean(masks[i])+torch.std(masks[i])))
-            edges_pred = (prediction > (torch.mean(prediction)+torch.std(prediction)))
-            bins_pred = torch.nonzero(edges_pred, as_tuple=False).float()
-            bins_mask = torch.nonzero(edges_mask, as_tuple=False).float()  
+            # masks_q  = torch.round(masks[i]  * ) / 10
+            prediction=prediction*self.mask 
+            edges_pred = torch.where(prediction > torch.mean(prediction)+torch.std(prediction))
+            edges_mask = torch.where(masks[i] > torch.mean(masks[i])+torch.std(masks[i]))
 
+            bins_pred = torch.stack(edges_pred, dim=1).float()  # Shape [num_edges, 2]
+            bins_mask = torch.stack(edges_mask, dim=1).float()  # Shape [num_edges, 2]
 
-            # edges_pred = (predictions[i] > torch.mean(predictions[i])+torch.std(predictions[i]))
-            # edges_mask = (masks[i] > torch.mean(masks[i])+torch.std(masks[i]))
+            bins_pred=torch.tensor(bins_pred,requires_grad=True)
+            bins_mask=torch.tensor(bins_mask,requires_grad=True)
 
-            # bins_pred = torch.nonzero(edges_pred, as_tuple=False)  # Shape [num_edges, 2]
-            # bins_mask = torch.nonzero(edges_mask, as_tuple=False)  # Shape [num_edges, 2]
+            if bins_pred.shape[0] < 5:
+                print("threshould set to mean for predictions")
+                edges_pred = torch.where(prediction > torch.mean(prediction))
+                bins_pred = torch.stack(edges_pred, dim=1).float()  # Shape [num_edges, 2]
+                bins_pred=torch.tensor(bins_pred,requires_grad=True)
 
-            # if bins_pred.shape[0] < 5:
-            #     print("No predictions to get PH, threshould set to mean")
-            #     edges_pred = (predictions[i] > torch.mean(predictions[i]))
-            #     bins_pred = torch.nonzero(edges_pred, as_tuple=False)  # Shape [num_edges, 2]
-            
-            # if bins_pred.shape[0] < 5:
-            #     print("No masks to get PH, threshould set to mean")
-            #     edges_mask = (masks[i] > torch.mean(masks[i]))
-            #     bins_mask = torch.nonzero(edges_mask, as_tuple=False)  # Shape [num_edges, 2]
+            if bins_pred.shape[0] < 5:
+                print("threshould set to mean for masks")
+                edges_pred = torch.where(prediction > torch.mean(prediction))
+                bins_pred = torch.stack(edges_pred, dim=1).float()  # Shape [num_edges, 2]
+                bins_mask=torch.tensor(bins_mask,requires_grad=True)
 
-            # # num_points = 100
-            # # if bins_pred.shape[0]>num_points:
-            # #     point_p = bins_pred[torch.randperm(bins_pred.shape[0])[:num_points]]
-            # # else:
-            # #     point_p = bins_pred
-            # # if bins_mask.shape[0]>num_points:
-            # #     point_m = bins_mask[torch.randperm(bins_mask.shape[0])[:num_points]]
-            # # else:
-            # #     point_m = bins_mask
+            # num_points = 100
+            # if bins_pred.shape[0]>num_points:
+            #     point_p = bins_pred[torch.randperm(bins_pred.shape[0])[:num_points]]
+            # else:
+            #     point_p = bins_pred
+            # if bins_mask.shape[0]>num_points:
+            #     point_m = bins_mask[torch.randperm(bins_mask.shape[0])[:num_points]]
+            # else:
+            #     point_m = bins_mask
 
             num_points = 100
             min_pred = bins_pred.min(dim=0).values
@@ -115,9 +113,6 @@ class Topological_Loss(torch.nn.Module):
 
             else:
                 point_m = bins_mask
-
-            point_p = torch.tensor(point_p,requires_grad=True)
-            point_m = torch.tensor(point_m,requires_grad=True)
 
             pi_pred     = self.vr(point_p)
             pi_mask     = self.vr(point_m)
