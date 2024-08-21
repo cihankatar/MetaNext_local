@@ -16,7 +16,7 @@ class Topological_Loss(torch.nn.Module):
 
     def __init__(self, lam=0.01, dimension=1,point_threshould=5,radius=1,n_points_rate=8,loss_norm=2):
         super().__init__()
-
+        self.device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.lam                = lam
         self.point_threshould   = point_threshould
         self.radius             = radius
@@ -28,7 +28,8 @@ class Topological_Loss(torch.nn.Module):
         self.wloss              = WassersteinDistance(p=2)
         self.mask               = create_mask(border_width=5) 
         self.thresholds         = torch.linspace(0, 1, steps=11)  # 10 intervals
-        self.cubicalcomplex     = CubicalComplex()
+
+        self.cubicalcomplex     = CubicalComplex().to(self.device )
 
     def forward(self, model_output,labels):
 
@@ -36,8 +37,8 @@ class Topological_Loss(torch.nn.Module):
         model_sigmoid_o     = self.sigmoid_f(model_output)
         sobel_predictions   = model_sigmoid_o
         sobel_masks         = labels
-        predictions         = torch.squeeze(sobel_predictions,dim=1)       
-        masks               = torch.squeeze(sobel_masks,dim=1)
+        predictions         = torch.squeeze(sobel_predictions,dim=1).to(self.device )       
+        masks               = torch.squeeze(sobel_masks,dim=1).to(self.device )
         for i in range(predictions.shape[0]):
 
             prediction  = (predictions[i] - predictions[i].min()) / (predictions[i].max() - predictions[i].min())
