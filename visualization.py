@@ -166,9 +166,9 @@ def barcod(mask,maskh,points_p,predict,predicth,points_m,topo_loss):
     plt.axis('scaled')
 
     if maskh[1][1].max()>predicth[1][1].max():
-        x = [0, maskh[1][1].max()]
+        x = [0, maskh[1][1].max().detach().numpy()]
     else:
-        x = [0, predicth[1][1].max()]
+        x = [0, predicth[1][1].max().detach().numpy()]
 
     mi     = maskh[1][1].cpu().detach().numpy()
     pi  = predicth[1][1].cpu().detach().numpy()
@@ -192,7 +192,7 @@ def barcod(mask,maskh,points_p,predict,predicth,points_m,topo_loss):
     h0=plt.scatter(pi[:,0], pi[:,1],marker='o',color='blue',s=10)
     h1=plt.scatter(predict_d0[:,0],predict_d0[:,1] ,marker='o',color='red',s=10)
     plt.plot(x, x, label='Diagonal',color='black')
-    plt.title('Persistence Diagram MP, loss :{}'.format(np.round(topo_loss)),fontsize = 8)
+    plt.title('Persistence Diagram MP, loss :{}'.format(np.round(topo_loss.detach().numpy())),fontsize = 8)
     plt.xlabel('Birth Time',fontsize = 8)
     plt.ylabel('Death Time',fontsize = 8)
     plt.xticks(fontsize=8)
