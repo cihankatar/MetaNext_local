@@ -42,12 +42,12 @@ class Topological_Loss(torch.nn.Module):
 
         for i in range(predictions.shape[0]):
             
-            prediction = predictions[i]*self.mask 
+            # prediction = predictions[i]*self.mask 
             prediction  = (prediction - prediction.min()) / (prediction.max() - prediction.min())
-            mask      = (masks[i] - masks[i].min()) / (masks[i].max() - masks[i].min())
+            # mask      = (masks[i] - masks[i].min()) / (masks[i].max() - masks[i].min())
 
-            bins_pred = soft_point_cloud_extraction(prediction)
-            bins_mask = soft_point_cloud_extraction(mask)
+            # bins_pred = soft_point_cloud_extraction(prediction)
+            # bins_mask = soft_point_cloud_extraction(mask)
 
 
             # height, width = prediction.shape
@@ -82,46 +82,46 @@ class Topological_Loss(torch.nn.Module):
             # else:
             #     point_m = bins_mask
 
-            num_points = 100
-            min_pred = bins_pred.min(dim=0).values
-            max_pred = bins_pred.max(dim=0).values
-            min_mask = bins_mask.min(dim=0).values
-            max_mask = bins_mask.max(dim=0).values
-            bounding_box_pred = torch.prod(max_pred - min_pred)
-            bounding_box_mask = torch.prod(max_mask - min_mask)
-            estimated_grid_pred = bounding_box_pred / num_points
-            estimated_grid_mask = bounding_box_mask / num_points
-            grid_size1 = torch.sqrt(estimated_grid_pred)
-            grid_size2 = torch.sqrt(estimated_grid_mask)
+            # num_points = 100
+            # min_pred = bins_pred.min(dim=0).values
+            # max_pred = bins_pred.max(dim=0).values
+            # min_mask = bins_mask.min(dim=0).values
+            # max_mask = bins_mask.max(dim=0).values
+            # bounding_box_pred = torch.prod(max_pred - min_pred)
+            # bounding_box_mask = torch.prod(max_mask - min_mask)
+            # estimated_grid_pred = bounding_box_pred / num_points
+            # estimated_grid_mask = bounding_box_mask / num_points
+            # grid_size1 = torch.sqrt(estimated_grid_pred)
+            # grid_size2 = torch.sqrt(estimated_grid_mask)
 
-            if bins_pred.shape[0]>num_points:
-                grid_indices    = (bins_pred // grid_size1).int()
-                unique_indices, inverse_indices = torch.unique(grid_indices, dim=0, return_inverse=True)
-                point_p         = torch.zeros_like(unique_indices, dtype=torch.float32)
-                counts          = torch.bincount(inverse_indices)
-                counts          = counts.float()
-                sums            = torch.zeros_like(point_p)
-                sums.index_add_(0, inverse_indices, bins_pred.float())
-                point_p = sums / counts.unsqueeze(1)
-            else:
-                point_p = bins_pred
+            # if bins_pred.shape[0]>num_points:
+            #     grid_indices    = (bins_pred // grid_size1).int()
+            #     unique_indices, inverse_indices = torch.unique(grid_indices, dim=0, return_inverse=True)
+            #     point_p         = torch.zeros_like(unique_indices, dtype=torch.float32)
+            #     counts          = torch.bincount(inverse_indices)
+            #     counts          = counts.float()
+            #     sums            = torch.zeros_like(point_p)
+            #     sums.index_add_(0, inverse_indices, bins_pred.float())
+            #     point_p = sums / counts.unsqueeze(1)
+            # else:
+            #     point_p = bins_pred
             
-            if bins_mask.shape[0]>num_points:
+            # if bins_mask.shape[0]>num_points:
 
-                grid_indices    = (bins_mask // grid_size2).int()
-                unique_indices, inverse_indices = torch.unique(grid_indices, dim=0, return_inverse=True)
-                point_m         = torch.zeros_like(unique_indices, dtype=torch.float32)
-                counts          = torch.bincount(inverse_indices)
-                counts          = counts.float()
-                sums            = torch.zeros_like(point_m)
-                sums.index_add_(0, inverse_indices, bins_mask.float())
-                point_m = sums / counts.unsqueeze(1)
+            #     grid_indices    = (bins_mask // grid_size2).int()
+            #     unique_indices, inverse_indices = torch.unique(grid_indices, dim=0, return_inverse=True)
+            #     point_m         = torch.zeros_like(unique_indices, dtype=torch.float32)
+            #     counts          = torch.bincount(inverse_indices)
+            #     counts          = counts.float()
+            #     sums            = torch.zeros_like(point_m)
+            #     sums.index_add_(0, inverse_indices, bins_mask.float())
+            #     point_m = sums / counts.unsqueeze(1)
 
-            else:
-                point_m = bins_mask
+            # else:
+            #     point_m = bins_mask
 
-            pi_pred     = self.vr(point_p)
-            pi_mask     = self.vr(point_m)
+            pi_pred     = self.cubicalcomplex(prediction)
+            pi_mask     = self.cubicalcomplex(masks[i])
             topo_loss   = self.wloss(pi_mask,pi_pred)             
             totalloss   +=topo_loss
         loss        = self.lam * totalloss/predictions.shape[0]
@@ -174,7 +174,7 @@ def soft_point_cloud_extraction(sobel_edges, temperature=1.0):
 
     if selected_coords.shape[0] < 2:
         print("threshould set to mean")
-        selected_coords = coords[edge_values > torch.mean(sobel_edges)-torch.std(sobel_edges)]
+        selected_coords = coords[edge_values > torch.mean(sobel_edges)]
         soft_point_cloud = (selected_coords* weights)/weights
 
     # Compute a soft point cloud by weighting the coordinates
