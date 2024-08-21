@@ -34,54 +34,53 @@ class Topological_Loss(torch.nn.Module):
 
         totalloss = 0
         model_sigmoid_o     = self.sigmoid_f(model_output)
-        sobel_predictions   = sobel_edge_detection(model_sigmoid_o)
-        sobel_masks         = sobel_edge_detection(labels)
+        sobel_predictions   = model_sigmoid_o
+        sobel_masks         = labels
         predictions         = torch.squeeze(sobel_predictions,dim=1)       
         masks               = torch.squeeze(sobel_masks,dim=1)
-
-        #pi_mask     = self.cubicalcomplex(masks)
-        #pi_pred     = self.cubicalcomplex(predictions)
-
         for i in range(predictions.shape[0]):
+
             prediction  = (predictions[i] - predictions[i].min()) / (predictions[i].max() - predictions[i].min())
-            mask        = (masks[i] - masks[i].min()) / (masks[i].max() - masks[i].min())
+            predictions_q  = torch.round(prediction  * 10) / 10
+            masks_q  = torch.round(masks[i]  * 10) / 10
 
-            sharpness = 10.0  # Increase for sharper thresholding
-            mean_val = torch.mean(predictions[i])
-            std_val = torch.std(predictions[i])
-            threshold = mean_val + std_val
-            edges_pred = torch.sigmoid(sharpness * (predictions[i] - threshold))
-            
-            edge_tensor = edges_pred.unsqueeze(0).unsqueeze(0)
-            # Step 2: Apply a Differentiable Edge Detection (Sobel Filter)
-            sobel_x = torch.tensor([[-1., 0., 1.], [-2., 0., 2.], [-1., 0., 1.]])
-            sobel_y = torch.tensor([[-1., -2., -1.], [0., 0., 0.], [1., 2., 1.]])
-            sobel_x = sobel_x.view(1, 1, 3, 3)  # Reshape for convolution
-            sobel_y = sobel_y.view(1, 1, 3, 3)
 
-            grad_x = F.conv2d(edge_tensor, sobel_x, padding=1)
-            grad_y = F.conv2d(edge_tensor, sobel_y, padding=1)
+            # mask        = (masks[i] - masks[i].min()) / (masks[i].max() - masks[i].min())
+            # sharpness = 10.0  # Increase for sharper thresholding
+            # mean_val = torch.mean(predictions[i])
+            # std_val = torch.std(predictions[i])
+            # threshold = mean_val + std_val
+            # edges_pred = torch.sigmoid(sharpness * (predictions[i] - threshold))
 
-            # Step 3: Calculate Gradient Magnitude (Edge Strength)
-            grad_magnitude = torch.sqrt(grad_x**2 + grad_y**2)
-            grad_magnitude = grad_magnitude.squeeze()
+            # edge_tensor = edges_pred.unsqueeze(0).unsqueeze(0)
+            # # Step 2: Apply a Differentiable Edge Detection (Sobel Filter)
+            # sobel_x = torch.tensor([[-1., 0., 1.], [-2., 0., 2.], [-1., 0., 1.]])
+            # sobel_y = torch.tensor([[-1., -2., -1.], [0., 0., 0.], [1., 2., 1.]])
+            # sobel_x = sobel_x.view(1, 1, 3, 3)  # Reshape for convolution
+            # sobel_y = sobel_y.view(1, 1, 3, 3)
 
-            edge_coords = torch.nonzero(edges_pred)
+            # grad_x = F.conv2d(edge_tensor, sobel_x, padding=1)
+            # grad_y = F.conv2d(edge_tensor, sobel_y, padding=1)
 
-            # Step 5: Normalize Coordinates and Store as Tensors
-            x_coords = edge_coords[:, 1].float() / prediction.shape[1]
-            y_coords = edge_coords[:, 0].float() / prediction.shape[0]
-            normalized_coords = torch.stack([x_coords, y_coords], dim=1)
+            # # Step 3: Calculate Gradient Magnitude (Edge Strength)
+            # grad_magnitude = torch.sqrt(grad_x**2 + grad_y**2)
+            # grad_magnitude = grad_magnitude.squeeze()
 
-            # Step 6: Compute Gradients with Respect to Coordinates
-            grad_x_at_edges = grad_x.squeeze()[edge_coords[:, 0], edge_coords[:, 1]]
-            grad_y_at_edges = grad_y.squeeze()[edge_coords[:, 0], edge_coords[:, 1]]
+            # edge_coords = torch.nonzero(edges_pred)
 
-            # Combine coordinates with gradients
-            result = torch.stack([x_coords, y_coords, grad_x_at_edges, grad_y_at_edges], dim=1)
+            # # Step 5: Normalize Coordinates and Store as Tensors
+            # x_coords = edge_coords[:, 1].float() / prediction.shape[1]
+            # y_coords = edge_coords[:, 0].float() / prediction.shape[0]
+            # normalized_coords = torch.stack([x_coords, y_coords], dim=1)
 
-            #predictions_q  = torch.round(predictions[i]  * 10) / 10
-            #masks_q  = torch.round(masks[i]  * 10) / 10
+            # # Step 6: Compute Gradients with Respect to Coordinates
+            # grad_x_at_edges = grad_x.squeeze()[edge_coords[:, 0], edge_coords[:, 1]]
+            # grad_y_at_edges = grad_y.squeeze()[edge_coords[:, 0], edge_coords[:, 1]]
+
+            # # Combine coordinates with gradients
+            # result = torch.stack([x_coords, y_coords, grad_x_at_edges, grad_y_at_edges], dim=1)
+
+
 
             # predictions[i]=predictions[i]*self.mask 
             # edges_pred = (predictions[i] > torch.mean(predictions[i])+torch.std(predictions[i]))
@@ -146,12 +145,15 @@ class Topological_Loss(torch.nn.Module):
             #     point_m = sums / counts.unsqueeze(1)
 
             # else:
-            #     point_m = bins_mask    
-  
-            topo_loss   =  self.wloss(pi_mask[i],pi_pred[i])             
+            #     point_m = bins_mask
+    
+            
+            pi_pred     = self.cubicalcomplex(predictions_q)
+            pi_mask     = self.cubicalcomplex(masks_q)
+
+            topo_loss   = self.wloss(pi_mask,pi_pred)             
             totalloss   +=topo_loss
         loss        = self.lam * totalloss/predictions.shape[0]
-
         return loss
 
 def create_mask(border_width=5):

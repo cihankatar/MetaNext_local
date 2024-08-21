@@ -1,62 +1,3 @@
-
-import torch.nn as nn
-import numpy as np
-import matplotlib.pyplot as plt
-import torch
-
-def testsample(images, labels, prediction,n):
-    rand_idx = n #np.random.randint(batch_size)
-    prediction    = prediction[rand_idx]        ## (1, 512, 512)
-    prediction    = np.squeeze(prediction)     ## (512, 512)
-    #prediction    = prediction > 0.5
-    #prediction    = np.array(prediction, dtype=np.uint8)
-    prediction    = np.transpose(prediction)
-
-    im_test       = np.array(images[rand_idx]*255,dtype=int)
-    im_test       = np.transpose(im_test, (2,1,0))
-    im_test       = np.squeeze(im_test)     ## (512, 512)
-
-    label_test    = np.array(labels[rand_idx]*255,dtype=int)
-    label_test    = np.transpose(label_test)
-    label_test    = np.squeeze(label_test)     ## (512, 512)
-
-    plt.figure()
-    plt.subplot(1, 3, 1)
-    plt.title('test_image')
-    plt.imshow(im_test) 
-    plt.subplot(1, 3, 2)
-    plt.title('prediction')
-    plt.imshow(prediction)
-    plt.subplot(1, 3, 3)
-    plt.title('label')
-    plt.imshow(label_test)
-
-
-def trainsample(images,labels,model_output,n):
-    import torch.nn as nn
-    import numpy as np
-    import matplotlib.pyplot as plt
-
-
-    sigm=nn.Sigmoid() 
-
-    which_image=n
-    image       = images[which_image].permute(2,1,0)
-    label       = labels[which_image].permute(2,1,0)
-    prediction  = model_output[which_image].permute(2,1,0)
-    prediction  = sigm(prediction).detach().numpy()
-
-    plt.figure()
-    plt.subplot(1, 3, 1)
-    plt.title('test_image')
-    plt.imshow(image) 
-    plt.title('mask')
-    plt.subplot(1, 3, 2)
-    plt.imshow(label)
-    plt.title('prediction')
-    plt.subplot(1, 3, 3)
-    plt.imshow(prediction)
-
 def peristent_diag(edges_mask_n,quantized_mask,pi_mask,edges_pred_n,quantized_pred,pi_pred,topo_loss):
    
     plt.figure()
@@ -134,6 +75,65 @@ def peristent_diag(edges_mask_n,quantized_mask,pi_mask,edges_pred_n,quantized_pr
     plt.axis('scaled')
     plt.legend((h0,h1),('H0', 'H1',),scatterpoints=1,loc='lower right',ncol=1,fontsize=8)
     plt.tight_layout()
+
+import torch.nn as nn
+import numpy as np
+import matplotlib.pyplot as plt
+import torch
+
+def testsample(images, labels, prediction,n):
+    rand_idx = n #np.random.randint(batch_size)
+    prediction    = prediction[rand_idx]        ## (1, 512, 512)
+    prediction    = np.squeeze(prediction)     ## (512, 512)
+    #prediction    = prediction > 0.5
+    #prediction    = np.array(prediction, dtype=np.uint8)
+    prediction    = np.transpose(prediction)
+
+    im_test       = np.array(images[rand_idx]*255,dtype=int)
+    im_test       = np.transpose(im_test, (2,1,0))
+    im_test       = np.squeeze(im_test)     ## (512, 512)
+
+    label_test    = np.array(labels[rand_idx]*255,dtype=int)
+    label_test    = np.transpose(label_test)
+    label_test    = np.squeeze(label_test)     ## (512, 512)
+
+    plt.figure()
+    plt.subplot(1, 3, 1)
+    plt.title('test_image')
+    plt.imshow(im_test) 
+    plt.subplot(1, 3, 2)
+    plt.title('prediction')
+    plt.imshow(prediction)
+    plt.subplot(1, 3, 3)
+    plt.title('label')
+    plt.imshow(label_test)
+
+
+def trainsample(images,labels,model_output,n):
+    import torch.nn as nn
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+
+    sigm=nn.Sigmoid() 
+
+    which_image=n
+    image       = images[which_image].permute(2,1,0)
+    label       = labels[which_image].permute(2,1,0)
+    prediction  = model_output[which_image].permute(2,1,0)
+    prediction  = sigm(prediction).detach().numpy()
+
+    plt.figure()
+    plt.subplot(1, 3, 1)
+    plt.title('test_image')
+    plt.imshow(image) 
+    plt.title('mask')
+    plt.subplot(1, 3, 2)
+    plt.imshow(label)
+    plt.title('prediction')
+    plt.subplot(1, 3, 3)
+    plt.imshow(prediction)
+
 
 def barcod(mask,maskh,points_p,predict,predicth,points_m,topo_loss):
    
