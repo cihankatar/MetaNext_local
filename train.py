@@ -212,6 +212,7 @@ def main():
             
                 for i in range(labels.shape[0]):
                     if torch.count_nonzero(labels[i]) < 100:
+                        print( "skipping aug")
                         images = images_copy
                         labels = labels_copy
                         break
