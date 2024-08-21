@@ -46,10 +46,22 @@ class Topological_Loss(torch.nn.Module):
             prediction  = (prediction - prediction.min()) / (prediction.max() - prediction.min())
             mask      = (masks[i] - masks[i].min()) / (masks[i].max() - masks[i].min())
 
-
-            
             bins_pred = soft_point_cloud_extraction(prediction)
             bins_mask = soft_point_cloud_extraction(mask)
+
+
+            # height, width = prediction.shape
+            # x_coords = torch.arange(width, dtype=torch.float32)
+            # y_coords = torch.arange(height, dtype=torch.float32)
+            # y_grid, x_grid = torch.meshgrid(y_coords, x_coords, indexing='ij')
+            
+            # pred_x_weighted = x_grid[prediction > torch.mean(prediction)+torch.std(prediction)] * prediction[prediction > torch.mean(prediction)+torch.std(prediction)]
+            # pred_y_weighted = y_grid[prediction > torch.mean(prediction)+torch.std(prediction)] * prediction[prediction > torch.mean(prediction)+torch.std(prediction)]
+            # mask_x_weighted = x_grid[mask > torch.mean(mask)+torch.std(mask)] * mask[mask > torch.mean(mask)+torch.std(mask)]
+            # mask_y_weighted = y_grid[mask > torch.mean(mask)+torch.std(mask)] * mask[mask > torch.mean(mask)+torch.std(mask)]
+
+            # bins_pred = torch.stack([pred_x_weighted, pred_y_weighted], dim=-1)
+            # bins_mask = torch.stack([mask_x_weighted, mask_y_weighted], dim=-1)
 
             # edges_pred = torch.where(prediction > torch.mean(prediction)+torch.std(prediction))
             # edges_mask = torch.where(masks[i] > torch.mean(masks[i])+torch.std(masks[i]))
@@ -125,12 +137,6 @@ def create_mask(border_width=5):
     mask[:, -border_width:] = 0
     return mask.to(device)
 
-def soft_threshold(x, lambda_val):
-    # Apply the soft thresholding function
-    return torch.sign(x) * torch.maximum(torch.abs(x) - lambda_val, torch.tensor(0.0, device=x.device))
-
-
-
 '''
 
     # predictions_q  = torch.round(prediction  * 10) / 10 
@@ -161,19 +167,29 @@ def soft_point_cloud_extraction(sobel_edges, temperature=1.0):
     edge_values = sobel_edges.reshape(-1)
     
     # Apply a softmax with temperature to create soft assignments
-    weights = torch.mean(edge_values)*20
+    weights = torch.mean(edge_values)
     
     selected_coords = coords[edge_values > torch.mean(sobel_edges)+torch.std(sobel_edges)]
 
     # Compute a soft point cloud by weighting the coordinates
-    soft_point_cloud = (selected_coords* weights)
-
+    soft_point_cloud = (selected_coords* weights)/weights
+    
     if soft_point_cloud.shape[0] < 5:
         print("threshould set to mean for predictions")
         selected_coords = coords[edge_values > torch.mean(sobel_edges)]
+        soft_point_cloud = (selected_coords* weights)
 
     return soft_point_cloud
 
+
+
+
+def compute_scale_factor(point_cloud):
+    # Calculate the mean distance of points from the centroid as a scaling factor
+    centroid = torch.mean(point_cloud, dim=0)
+    distances = torch.norm(point_cloud - centroid, dim=1)
+    scale_factor = torch.mean(distances)
+    return scale_factor
 
 
 def sobel_edge_detection(image):
