@@ -172,10 +172,10 @@ def soft_point_cloud_extraction(sobel_edges, temperature=1.0):
     
     selected_coords = coords[edge_values > torch.mean(sobel_edges)+torch.std(sobel_edges)]
 
-    if soft_point_cloud.shape[0] < 2:
+    if selected_coords.shape[0] < 2:
         print("threshould set to mean")
         selected_coords = coords[edge_values > torch.mean(sobel_edges)-torch.std(sobel_edges)]
-        soft_point_cloud = (selected_coords* weights)
+        soft_point_cloud = (selected_coords* weights)/weights
 
     # Compute a soft point cloud by weighting the coordinates
     else:
