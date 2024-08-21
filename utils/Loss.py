@@ -28,49 +28,28 @@ class Topological_Loss(torch.nn.Module):
         self.wloss              = WassersteinDistance(p=2)
         self.mask               = create_mask(border_width=5) 
         self.thresholds         = torch.linspace(0, 1, steps=11)  # 10 intervals
+        self.maxpool            = nn.MaxPool2d(2,2)
 
-        self.cubicalcomplex     = CubicalComplex().to(self.device )
+        self.cubicalcomplex     = CubicalComplex()
 
     def forward(self, model_output,labels):
 
         totalloss = 0
+        model_output        = self.maxpool(self.maxpool(model_output))
+        labels              = self.maxpool(self.maxpool(labels))
         model_sigmoid_o     = self.sigmoid_f(model_output)
-        sobel_predictions   = sobel_edge_detection(model_sigmoid_o)
-        sobel_masks         = sobel_edge_detection(labels)
+        sobel_predictions   = model_sigmoid_o
+        sobel_masks         = labels
         predictions         = torch.squeeze(sobel_predictions,dim=1) 
         masks               = torch.squeeze(sobel_masks,dim=1)
 
         for i in range(predictions.shape[0]):
             
-            # prediction = predictions[i]*self.mask 
+            prediction = predictions[i]*self.mask 
             prediction  = (prediction - prediction.min()) / (prediction.max() - prediction.min())
-            # mask      = (masks[i] - masks[i].min()) / (masks[i].max() - masks[i].min())
-
+            #mask      = (masks[i] - masks[i].min()) / (masks[i].max() - masks[i].min())
             # bins_pred = soft_point_cloud_extraction(prediction)
-            # bins_mask = soft_point_cloud_extraction(mask)
-
-
-            # height, width = prediction.shape
-            # x_coords = torch.arange(width, dtype=torch.float32)
-            # y_coords = torch.arange(height, dtype=torch.float32)
-            # y_grid, x_grid = torch.meshgrid(y_coords, x_coords, indexing='ij')
-            
-            # pred_x_weighted = x_grid[prediction > torch.mean(prediction)+torch.std(prediction)] * prediction[prediction > torch.mean(prediction)+torch.std(prediction)]
-            # pred_y_weighted = y_grid[prediction > torch.mean(prediction)+torch.std(prediction)] * prediction[prediction > torch.mean(prediction)+torch.std(prediction)]
-            # mask_x_weighted = x_grid[mask > torch.mean(mask)+torch.std(mask)] * mask[mask > torch.mean(mask)+torch.std(mask)]
-            # mask_y_weighted = y_grid[mask > torch.mean(mask)+torch.std(mask)] * mask[mask > torch.mean(mask)+torch.std(mask)]
-
-            # bins_pred = torch.stack([pred_x_weighted, pred_y_weighted], dim=-1)
-            # bins_mask = torch.stack([mask_x_weighted, mask_y_weighted], dim=-1)
-
-            # edges_pred = torch.where(prediction > torch.mean(prediction)+torch.std(prediction))
-            # edges_mask = torch.where(masks[i] > torch.mean(masks[i])+torch.std(masks[i]))
-
-            # bins_pred = torch.stack(edges_pred, dim=1).float()  # Shape [num_edges, 2]
-            # bins_mask = torch.stack(edges_mask, dim=1).float()  # Shape [num_edges, 2]
-
-            # bins_pred=torch.tensor(bins_pred,requires_grad=True)
-            # bins_mask=torch.tensor(bins_mask,requires_grad=True)
+            # bins_mask = soft_point_cloud_extraction(masks[i])
 
             # num_points = 100
             # if bins_pred.shape[0]>num_points:
@@ -144,7 +123,7 @@ def create_mask(border_width=5):
     
     gd.plot_persistence_diagram(diag1)
     
-    peristent_diag(masks[i],masks[i],pi_mask[i],predictions[i],predictions[i],pi_pred[i],topo_loss)
+    peristent_diag(masks[i],masks[i],pi_mask,predictions[i],predictions[i],pi_pred,topo_loss)
 
     barcod(edges_mask,pi_mask,point_m,edges_pred,pi_pred,point_p,topo_loss)
     barcod(thresholded_mask,pi_mask_c,point_m,thresholded_pred,pi_pred_c,point_p,topo_loss_c)
