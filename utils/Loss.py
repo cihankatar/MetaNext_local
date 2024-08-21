@@ -5,7 +5,10 @@ import torch.nn.functional as F
 from torch_topological.nn import WassersteinDistance,CubicalComplex
 from torch_topological.nn import VietorisRipsComplex
 from visualization import *
-from skimage.feature import local_binary_pattern 
+#from skimage.feature import local_binary_pattern 
+#import gudhi as gd
+#from gudhi.wasserstein import wasserstein_distance
+
 
 #import gudhi as gd
 
@@ -25,7 +28,7 @@ class Topological_Loss(torch.nn.Module):
         self.wloss              = WassersteinDistance(p=2)
         self.mask               = create_mask(border_width=5) 
         self.thresholds         = torch.linspace(0, 1, steps=11)  # 10 intervals
-        # self.cubicalcomplex     = CubicalComplex()
+        self.cubicalcomplex     = CubicalComplex()
 
     def forward(self, model_output,labels):
 
@@ -33,99 +36,122 @@ class Topological_Loss(torch.nn.Module):
         model_sigmoid_o     = self.sigmoid_f(model_output)
         sobel_predictions   = sobel_edge_detection(model_sigmoid_o)
         sobel_masks         = sobel_edge_detection(labels)
-        
-        # predictions_c       = torch.squeeze(model_output,dim=1)       
-        # masks_c             = torch.squeeze(labels,dim=1)
-
         predictions         = torch.squeeze(sobel_predictions,dim=1)       
         masks               = torch.squeeze(sobel_masks,dim=1)
 
+        #pi_mask     = self.cubicalcomplex(masks)
+        #pi_pred     = self.cubicalcomplex(predictions)
 
         for i in range(predictions.shape[0]):
+            prediction  = (predictions[i] - predictions[i].min()) / (predictions[i].max() - predictions[i].min())
+            mask        = (masks[i] - masks[i].min()) / (masks[i].max() - masks[i].min())
 
-            predictions[i]=predictions[i]*self.mask 
-            edges_pred = (predictions[i] > torch.mean(predictions[i])+torch.std(predictions[i]))
-            edges_mask = (masks[i] > torch.mean(masks[i])+torch.std(masks[i]))
+            sharpness = 10.0  # Increase for sharper thresholding
+            mean_val = torch.mean(predictions[i])
+            std_val = torch.std(predictions[i])
+            threshold = mean_val + std_val
+            edges_pred = torch.sigmoid(sharpness * (predictions[i] - threshold))
             
-            bins_pred = torch.nonzero(edges_pred, as_tuple=False)  # Shape [num_edges, 2]
-            bins_mask = torch.nonzero(edges_mask, as_tuple=False)  # Shape [num_edges, 2]
+            edge_tensor = edges_pred.unsqueeze(0).unsqueeze(0)
+            # Step 2: Apply a Differentiable Edge Detection (Sobel Filter)
+            sobel_x = torch.tensor([[-1., 0., 1.], [-2., 0., 2.], [-1., 0., 1.]])
+            sobel_y = torch.tensor([[-1., -2., -1.], [0., 0., 0.], [1., 2., 1.]])
+            sobel_x = sobel_x.view(1, 1, 3, 3)  # Reshape for convolution
+            sobel_y = sobel_y.view(1, 1, 3, 3)
 
-            if bins_pred.shape[0] < 5:
-                print("No predictions to get PH, threshould set to mean")
-                edges_pred = (predictions[i] > torch.mean(predictions[i]))
-                bins_pred = torch.nonzero(edges_pred, as_tuple=False)  # Shape [num_edges, 2]
+            grad_x = F.conv2d(edge_tensor, sobel_x, padding=1)
+            grad_y = F.conv2d(edge_tensor, sobel_y, padding=1)
+
+            # Step 3: Calculate Gradient Magnitude (Edge Strength)
+            grad_magnitude = torch.sqrt(grad_x**2 + grad_y**2)
+            grad_magnitude = grad_magnitude.squeeze()
+
+            edge_coords = torch.nonzero(edges_pred)
+
+            # Step 5: Normalize Coordinates and Store as Tensors
+            x_coords = edge_coords[:, 1].float() / prediction.shape[1]
+            y_coords = edge_coords[:, 0].float() / prediction.shape[0]
+            normalized_coords = torch.stack([x_coords, y_coords], dim=1)
+
+            # Step 6: Compute Gradients with Respect to Coordinates
+            grad_x_at_edges = grad_x.squeeze()[edge_coords[:, 0], edge_coords[:, 1]]
+            grad_y_at_edges = grad_y.squeeze()[edge_coords[:, 0], edge_coords[:, 1]]
+
+            # Combine coordinates with gradients
+            result = torch.stack([x_coords, y_coords, grad_x_at_edges, grad_y_at_edges], dim=1)
+
+            #predictions_q  = torch.round(predictions[i]  * 10) / 10
+            #masks_q  = torch.round(masks[i]  * 10) / 10
+
+            # predictions[i]=predictions[i]*self.mask 
+            # edges_pred = (predictions[i] > torch.mean(predictions[i])+torch.std(predictions[i]))
+            # edges_mask = (masks[i] > torch.mean(masks[i])+torch.std(masks[i]))
+
+            # bins_pred = torch.nonzero(edges_pred, as_tuple=False)  # Shape [num_edges, 2]
+            # bins_mask = torch.nonzero(edges_mask, as_tuple=False)  # Shape [num_edges, 2]
+
+            # if bins_pred.shape[0] < 5:
+            #     print("No predictions to get PH, threshould set to mean")
+            #     edges_pred = (predictions[i] > torch.mean(predictions[i]))
+            #     bins_pred = torch.nonzero(edges_pred, as_tuple=False)  # Shape [num_edges, 2]
             
-            if bins_pred.shape[0] < 5:
-                print("No masks to get PH, threshould set to mean")
-                edges_mask = (masks[i] > torch.mean(masks[i]))
-                bins_mask = torch.nonzero(edges_mask, as_tuple=False)  # Shape [num_edges, 2]
+            # if bins_pred.shape[0] < 5:
+            #     print("No masks to get PH, threshould set to mean")
+            #     edges_mask = (masks[i] > torch.mean(masks[i]))
+            #     bins_mask = torch.nonzero(edges_mask, as_tuple=False)  # Shape [num_edges, 2]
 
-            num_points = 100
-            if bins_pred.shape[0]>num_points:
-                point_p = bins_pred[torch.randperm(bins_pred.shape[0])[:num_points]]
-            else:
-                point_p = bins_pred
-            if bins_mask.shape[0]>num_points:
-                point_m = bins_mask[torch.randperm(bins_mask.shape[0])[:num_points]]
-            else:
-                point_m = bins_mask
+            # # num_points = 100
+            # # if bins_pred.shape[0]>num_points:
+            # #     point_p = bins_pred[torch.randperm(bins_pred.shape[0])[:num_points]]
+            # # else:
+            # #     point_p = bins_pred
+            # # if bins_mask.shape[0]>num_points:
+            # #     point_m = bins_mask[torch.randperm(bins_mask.shape[0])[:num_points]]
+            # # else:
+            # #     point_m = bins_mask
 
-            num_points = 100
-            min_pred = bins_pred.min(dim=0).values
-            max_pred = bins_pred.max(dim=0).values
-            min_mask = bins_mask.min(dim=0).values
-            max_mask = bins_mask.max(dim=0).values
-            bounding_box_pred = torch.prod(max_pred - min_pred)
-            bounding_box_mask = torch.prod(max_mask - min_mask)
-            estimated_grid_pred = bounding_box_pred / num_points
-            estimated_grid_mask = bounding_box_mask / num_points
-            grid_size1 = torch.sqrt(estimated_grid_pred)
-            grid_size2 = torch.sqrt(estimated_grid_mask)
+            # num_points = 100
+            # min_pred = bins_pred.min(dim=0).values
+            # max_pred = bins_pred.max(dim=0).values
+            # min_mask = bins_mask.min(dim=0).values
+            # max_mask = bins_mask.max(dim=0).values
+            # bounding_box_pred = torch.prod(max_pred - min_pred)
+            # bounding_box_mask = torch.prod(max_mask - min_mask)
+            # estimated_grid_pred = bounding_box_pred / num_points
+            # estimated_grid_mask = bounding_box_mask / num_points
+            # grid_size1 = torch.sqrt(estimated_grid_pred)
+            # grid_size2 = torch.sqrt(estimated_grid_mask)
 
-            if bins_pred.shape[0]>num_points:
-                grid_indices    = (bins_pred // grid_size1).int()
-                unique_indices, inverse_indices = torch.unique(grid_indices, dim=0, return_inverse=True)
-                point_p         = torch.zeros_like(unique_indices, dtype=torch.float32)
-                counts          = torch.bincount(inverse_indices)
-                counts          = counts.float()
-                sums            = torch.zeros_like(point_p)
-                sums.index_add_(0, inverse_indices, bins_pred.float())
-                point_p = sums / counts.unsqueeze(1)
-            else:
-                point_p = bins_pred
+            # if bins_pred.shape[0]>num_points:
+            #     grid_indices    = (bins_pred // grid_size1).int()
+            #     unique_indices, inverse_indices = torch.unique(grid_indices, dim=0, return_inverse=True)
+            #     point_p         = torch.zeros_like(unique_indices, dtype=torch.float32)
+            #     counts          = torch.bincount(inverse_indices)
+            #     counts          = counts.float()
+            #     sums            = torch.zeros_like(point_p)
+            #     sums.index_add_(0, inverse_indices, bins_pred.float())
+            #     point_p = sums / counts.unsqueeze(1)
+            # else:
+            #     point_p = bins_pred
             
-            if bins_mask.shape[0]>num_points:
+            # if bins_mask.shape[0]>num_points:
 
-                grid_indices    = (bins_mask // grid_size2).int()
-                unique_indices, inverse_indices = torch.unique(grid_indices, dim=0, return_inverse=True)
-                point_m         = torch.zeros_like(unique_indices, dtype=torch.float32)
-                counts          = torch.bincount(inverse_indices)
-                counts          = counts.float()
-                sums            = torch.zeros_like(point_m)
-                sums.index_add_(0, inverse_indices, bins_mask.float())
-                point_m = sums / counts.unsqueeze(1)
+            #     grid_indices    = (bins_mask // grid_size2).int()
+            #     unique_indices, inverse_indices = torch.unique(grid_indices, dim=0, return_inverse=True)
+            #     point_m         = torch.zeros_like(unique_indices, dtype=torch.float32)
+            #     counts          = torch.bincount(inverse_indices)
+            #     counts          = counts.float()
+            #     sums            = torch.zeros_like(point_m)
+            #     sums.index_add_(0, inverse_indices, bins_mask.float())
+            #     point_m = sums / counts.unsqueeze(1)
 
-            else:
-                point_m = bins_mask      
-
-            pi_pred      = self.vr(point_p.float())
-            pi_mask      = self.vr(point_m.float())            
-
-            topo_loss    =  self.wloss(pi_mask,pi_pred)             
-            totalloss    +=topo_loss
-
-            # min_val = predictions_c[i].min()
-            # max_val = predictions_c[i].max()
-            # # Step 2: Normalize the image to the range [0, 1]
-            # normalized_image = (predictions_c[i] - min_val) / (max_val - min_val)
-            # thresholded_pred = self.thresholds[torch.bucketize(normalized_image, self.thresholds, right=True) - 1]
-            # thresholded_mask = self.thresholds[torch.bucketize(masks_c[i], self.thresholds, right=True) - 1]
-            # pi_pred_c = self.cubicalcomplex(thresholded_pred)
-            # pi_mask_c  = self.cubicalcomplex(thresholded_mask)
-            # topo_loss_c    =  self.wloss(pi_mask_c,pi_pred_c)  
-
+            # else:
+            #     point_m = bins_mask    
+  
+            topo_loss   =  self.wloss(pi_mask[i],pi_pred[i])             
+            totalloss   +=topo_loss
         loss        = self.lam * totalloss/predictions.shape[0]
-        loss.requires_grad=True
+
         return loss
 
 def create_mask(border_width=5):
@@ -138,12 +164,18 @@ def create_mask(border_width=5):
     mask[:, -border_width:] = 0
     return mask.to(device)
 
+
 '''
+    gd.plot_persistence_diagram(diag1)
+    
+    peristent_diag(masks[i],masks[i],pi_mask[i],predictions[i],predictions[i],pi_pred[i],topo_loss)
+
     barcod(edges_mask,pi_mask,point_m,edges_pred,pi_pred,point_p,topo_loss)
     barcod(thresholded_mask,pi_mask_c,point_m,thresholded_pred,pi_pred_c,point_p,topo_loss_c)
 
     figures (model_output,sobel_predictions,bins_pred,point_p,labels,sobel_masks,bins_mask,point_m,i,topo_loss)
     barcod(labels[i][0],pi_mask,point_m,model_output[i][0],pi_pred,point_p,1,topo_loss) 
+    barcod(edges_mask,pi_mask,point_m,edges_pred,pi_pred,point_p,topo_loss)
 
 ''' 
 
