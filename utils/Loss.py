@@ -50,8 +50,7 @@ class Topological_Loss(torch.nn.Module):
             edges_pred = (prediction > (torch.mean(prediction)+torch.std(prediction)))
             bins_pred = torch.nonzero(edges_pred, as_tuple=False).float()
             bins_mask = torch.nonzero(edges_mask, as_tuple=False).float()  
-            bins_pred = torch.tensor(bins_pred,requires_grad=True)
-            bins_mask = torch.tensor(bins_mask,requires_grad=True)
+
 
             # edges_pred = (predictions[i] > torch.mean(predictions[i])+torch.std(predictions[i]))
             # edges_mask = (masks[i] > torch.mean(masks[i])+torch.std(masks[i]))
@@ -116,7 +115,10 @@ class Topological_Loss(torch.nn.Module):
 
             else:
                 point_m = bins_mask
-    
+
+            point_p = torch.tensor(point_p,requires_grad=True)
+            point_m = torch.tensor(point_m,requires_grad=True)
+
             pi_pred     = self.vr(point_p)
             pi_mask     = self.vr(point_m)
             topo_loss   = self.wloss(pi_mask,pi_pred)             
