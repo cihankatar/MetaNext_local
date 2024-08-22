@@ -117,7 +117,7 @@ if __name__ == "__main__":
     model.eval()
 
 
-    TopoLoss                    = Topological_Loss(lam=0.00005, dimension=1).to(device)
+    TopoLoss                    = Topological_Loss(lam=0.5).to(device)
 
     args.shuffle = False
     
@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
             prediction          = torch.sigmoid(model_output)
             topo_loss           = TopoLoss(model_output,labels)
-            #topo_loss           = topo_model(a,labels)
+
 
             if args.noclasses>1:
                 prediction    = torch.argmax(prediction,dim=2)    #for multiclass_segmentation

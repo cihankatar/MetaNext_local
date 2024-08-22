@@ -110,7 +110,6 @@ def main():
                             data )
     args.aug = True
 
-
     ##### Model Building based on arguments  ####
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
@@ -152,7 +151,7 @@ def main():
     best_valid_loss             = float("inf")
     optimizer                   = Adam(model.parameters(), lr=config['learningrate'])
     loss_function               = Dice_CE_Loss()
-    TopoLoss                    = Topological_Loss(lam=0.002, dimension=1).to(device)
+    TopoLoss                    = Topological_Loss(lam=0.5).to(device)
 
     scheduler                   = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, config['epochs'], eta_min=config['learningrate']/10, last_epoch=-1)
     initialcutoutpr             = args.cutoutpr 
@@ -164,7 +163,7 @@ def main():
     print('Val loader transform',val_loader.dataset.tr)
     print(f"Model  : {model.__class__.__name__+'['+str(res)+']'}, trainable params: {trainable_params}")
     print(f"Training with {len(train_loader)*args.bsize} images~~ , Saving checkpoint: {checkpoint_path}")
-    print(f"Topology Loss Config: regularization, {augmentation_regularization}, Dim - {TopoLoss.vr.dim}, lambda - {TopoLoss.lam}, Addtopoloss:{addtopoloss}, point_threshould- {TopoLoss.point_threshould}, radius- {TopoLoss.radius},n_points_rate-{TopoLoss.n_points_rate},loss_norm-{TopoLoss.loss_norm}")
+    print(f"Topology Loss Config: regularization, {augmentation_regularization}, lambda - {TopoLoss.lam}, Addtopoloss:{addtopoloss}")
     
     ##########  TRAINING ##########
 #    args.shuffle = False

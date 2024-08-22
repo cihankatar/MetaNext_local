@@ -1,80 +1,3 @@
-def peristent_diag(edges_mask_n,quantized_mask,pi_mask,edges_pred_n,quantized_pred,pi_pred,topo_loss):
-   
-    plt.figure()
-    plt.subplot(3,2,1)
-    plt.title("Mask Image",fontsize = 8)
-    plt.imshow(edges_mask_n.detach().numpy())
-    plt.xticks(fontsize=8)
-    plt.yticks(fontsize=8,rotation=90)
-
-    plt.subplot(3,2,3)
-    plt.title("Quantized Mask",fontsize = 8)
-    plt.imshow(quantized_mask.detach().numpy())
-    plt.xticks(fontsize=8)
-    plt.yticks(fontsize=8,rotation=90) 
-
-    plt.subplot(3,2,2)
-    plt.title("Edges of MP",fontsize = 8)
-    plt.imshow(edges_pred_n.detach().numpy())
-    plt.xticks(fontsize=8)
-    plt.yticks(fontsize=8,rotation=90)
-
-    plt.subplot(3,2,4)
-    plt.title("Quantized MP",fontsize = 8)
-    plt.imshow(quantized_pred.detach().numpy())
-    plt.xticks(fontsize=8)
-    plt.yticks(fontsize=8,rotation=90) 
-
-
-    if torch.count_nonzero(pi_mask[1][1]) > 0:
-        if pi_mask[1][1].max()>pi_pred[1][1].max():
-            x = [0, pi_mask[1][1].max()]
-        else:
-            x = [0, pi_pred[1][1].max()]
-
-    elif torch.count_nonzero(pi_pred[1][1]) > 0:
-        if pi_mask[1][1].max()>pi_pred[1][1].max():
-            x = [0, pi_mask[1][1].max()]
-        else:
-            x = [0, pi_pred[1][1].max()]
-
-
-    mi     = pi_mask[1][1].cpu().detach().numpy()
-    pi     = pi_pred[1][1].cpu().detach().numpy()
-
-    mask_d0     = pi_mask[0][1].cpu().detach().numpy()
-    predict_d0  = pi_pred[0][1].cpu().detach().numpy()
-
-    plt.subplot(3,2,5)
-    if torch.count_nonzero(pi_mask[1][1]) > 0:
-        h1=plt.scatter(mi[:,0],mi[:,1] ,marker='o',color='blue',s=10)
-    if torch.count_nonzero(pi_mask[0][1]) > 0:
-        h0=plt.scatter(mask_d0[:,0],mask_d0[:,1] ,marker='o',color='red',s=10)
-
-    plt.plot(x, x, label='Diagonal',color='black')
-    plt.title('Persistence Diagram MI',fontsize = 8)
-    plt.xlabel('Birth Time',fontsize = 8)
-    plt.ylabel('Death Time',fontsize = 8)
-    plt.xticks(fontsize=8)
-    plt.yticks(fontsize=8,rotation=90)
-    plt.axis('scaled')
-    plt.legend((h0,h1),('H0', 'H1',),scatterpoints=1,loc='lower right',ncol=1,fontsize=8)
-
-
-    plt.subplot(3,2,6)
-    if torch.count_nonzero(pi_pred[1][1]) > 0:
-        h1=plt.scatter(pi[:,0], pi[:,1],marker='o',color='blue',s=10)
-    if torch.count_nonzero(pi_pred[0][1]) > 0:
-        h0=plt.scatter(predict_d0[:,0],predict_d0[:,1] ,marker='o',color='red',s=10)
-    plt.plot(x, x, label='Diagonal',color='black')
-    plt.title('Persistence Diagram MP',fontsize = 8)
-    plt.xlabel('Birth Time',fontsize = 8)
-    plt.ylabel('Death Time',fontsize = 8)
-    plt.xticks(fontsize=8)
-    plt.yticks(fontsize=8,rotation=90)
-    plt.axis('scaled')
-    plt.legend((h0,h1),('H0', 'H1',),scatterpoints=1,loc='lower right',ncol=1,fontsize=8)
-    plt.tight_layout()
 
 import torch.nn as nn
 import numpy as np
@@ -134,6 +57,73 @@ def trainsample(images,labels,model_output,n):
     plt.subplot(1, 3, 3)
     plt.imshow(prediction)
 
+def peristent_diag(edges_mask_n,quantized_mask,pi_mask,edges_pred_n,quantized_pred,pi_pred,topo_loss):
+   
+    plt.figure()
+    plt.subplot(2,2,1)
+    plt.title("Mask Image",fontsize = 8)
+    plt.imshow(edges_mask_n.detach().numpy())
+    plt.xticks(fontsize=8)
+    plt.yticks(fontsize=8,rotation=90)
+    plt.axis('off')
+
+    plt.subplot(2,2,2)
+    plt.title("Model Output",fontsize = 8)
+    plt.imshow(quantized_pred.detach().numpy())
+    plt.xticks(fontsize=8)
+    plt.yticks(fontsize=8,rotation=90)
+    plt.axis('off')
+
+
+    if torch.count_nonzero(pi_mask[1][1]) > 0:
+        if pi_mask[1][1].max()>pi_pred[1][1].max():
+            x = [0, pi_mask[1][1].max()]
+        else:
+            x = [0, pi_pred[1][1].max()]
+
+    elif torch.count_nonzero(pi_pred[1][1]) > 0:
+        if pi_mask[1][1].max()>pi_pred[1][1].max():
+            x = [0, pi_mask[1][1].max()]
+        else:
+            x = [0, pi_pred[1][1].max()]
+
+
+    mi     = pi_mask[1][1].cpu().detach().numpy()
+    pi     = pi_pred[1][1].cpu().detach().numpy()
+
+    mask_d0     = pi_mask[0][1].cpu().detach().numpy()
+    predict_d0  = pi_pred[0][1].cpu().detach().numpy()
+
+    plt.subplot(2,2,3)
+    if torch.count_nonzero(pi_mask[1][1]) > 0:
+        h1=plt.scatter(mi[:,0],mi[:,1] ,marker='o',color='blue',s=10)
+    if torch.count_nonzero(pi_mask[0][1]) > 0:
+        h0=plt.scatter(mask_d0[:,0],mask_d0[:,1] ,marker='o',color='red',s=10)
+
+    plt.plot(x, x, label='Diagonal',color='black')
+    plt.title('Persistence Diagram MI',fontsize = 8)
+    plt.xlabel('Birth Scale',fontsize = 8)
+    plt.ylabel('Death Scale',fontsize = 8)
+    plt.xticks(fontsize=8)
+    plt.yticks(fontsize=8,rotation=90)
+    plt.axis('scaled')
+    plt.legend((h0,h1),('H0', 'H1',),scatterpoints=1,loc='lower right',ncol=1,fontsize=8)
+
+
+    plt.subplot(2,2,4)
+    if torch.count_nonzero(pi_pred[1][1]) > 0:
+        h1=plt.scatter(pi[:,0], pi[:,1],marker='o',color='blue',s=10)
+    if torch.count_nonzero(pi_pred[0][1]) > 0:
+        h0=plt.scatter(predict_d0[:,0],predict_d0[:,1] ,marker='o',color='red',s=10)
+    plt.plot(x, x, label='Diagonal',color='black')
+    plt.title('Persistence Diagram MP',fontsize = 8)
+    plt.xlabel('Birth Scale',fontsize = 8)
+    plt.ylabel('Death Scale',fontsize = 8)
+    plt.xticks(fontsize=8)
+    plt.yticks(fontsize=8,rotation=90)
+    plt.axis('scaled')
+    plt.legend((h0,h1),('H0', 'H1',),scatterpoints=1,loc='lower right',ncol=1,fontsize=8)
+    plt.tight_layout()
 
 def barcod(mask,maskh,points_p,predict,predicth,points_m,topo_loss):
    

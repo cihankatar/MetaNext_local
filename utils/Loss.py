@@ -14,39 +14,52 @@ from visualization import *
 
 class Topological_Loss(torch.nn.Module):
 
-    def __init__(self, lam=0.01, dimension=1,point_threshould=5,radius=1,n_points_rate=8,loss_norm=2):
+    def __init__(self, lam=0.1):
         super().__init__()
-        self.device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.lam                = lam
-        self.point_threshould   = point_threshould
-        self.radius             = radius
-        self.n_points_rate      = n_points_rate
-        self.dimension          = dimension
-        self.loss_norm          = loss_norm
-        self.sigmoid_f          = nn.Sigmoid()
-        self.vr                 = VietorisRipsComplex(dim=self.dimension)
-        self.wloss              = WassersteinDistance(p=2)
-        self.mask               = create_mask(border_width=5) 
-        self.thresholds         = torch.linspace(0, 1, steps=11)  # 10 intervals
-        self.maxpool            = nn.MaxPool2d(2,2)
-
+        #self.vr                 = VietorisRipsComplex(dim=self.dimension)
         self.cubicalcomplex     = CubicalComplex()
-
+        self.wloss              = WassersteinDistance(p=2)
+        self.sigmoid_f          = nn.Sigmoid()
+        self.maxpool            = nn.MaxPool2d(2,2)
+  
     def forward(self, model_output,labels):
 
-        totalloss = 0
-        model_output        = self.maxpool(self.maxpool(model_output))
-        labels              = self.maxpool(self.maxpool(labels))
-        model_sigmoid_o     = self.sigmoid_f(model_output)
-        sobel_predictions   = model_sigmoid_o
-        sobel_masks         = labels
-        predictions         = torch.squeeze(sobel_predictions,dim=1) 
-        masks               = torch.squeeze(sobel_masks,dim=1)
-
+        totalloss             = 0
+        model_output_r        = self.maxpool(self.maxpool(model_output))
+        labels_r              = self.maxpool(self.maxpool(labels))
+        
+        model_output_r        = self.sigmoid_f(model_output_r)
+        predictions           = torch.squeeze(model_output_r,dim=1) 
+        masks                 = torch.squeeze(labels_r,dim=1)
+    
+        pi_pred               = self.cubicalcomplex(predictions)
+        pi_mask               = self.cubicalcomplex(masks)
+        
         for i in range(predictions.shape[0]):
-            
-            prediction = predictions[i]*self.mask 
-            prediction  = (prediction - prediction.min()) / (prediction.max() - prediction.min())
+
+            topo_loss   = self.wloss(pi_mask[i],pi_pred[i])             
+            totalloss   +=topo_loss
+        loss             = self.lam * totalloss/predictions.shape[0]
+        return loss
+
+'''
+
+    # predictions_q  = torch.round(prediction  * 10) / 10 
+    # masks_q  = torch.round(masks[i]  * ) / 10
+    
+    gd.plot_persistence_diagram(diag1)
+    
+    plt.figure()
+    plt.imshow(images[i].permute(2,1,0))    
+    peristent_diag(labels[i][0],masks[i],pi_mask,model_output[i][0],predictions[i],pi_pred,topo_loss)
+
+    barcod(edges_mask,pi_mask,point_m,edges_pred,pi_pred,point_p,topo_loss)
+    barcod(thresholded_mask,pi_mask_c,point_m,thresholded_pred,pi_pred_c,point_p,topo_loss_c)
+
+    figures (model_output,sobel_predictions,bins_pred,point_p,labels,sobel_masks,bins_mask,point_m,i,topo_loss)
+    barcod(labels[i][0],pi_mask,point_m,model_output[i][0],pi_pred,point_p,1,topo_loss) 
+    barcod(edges_mask,pi_mask,point_m,edges_pred,pi_pred,point_p,topo_loss)
             #mask      = (masks[i] - masks[i].min()) / (masks[i].max() - masks[i].min())
             # bins_pred = soft_point_cloud_extraction(prediction)
             # bins_mask = soft_point_cloud_extraction(masks[i])
@@ -98,96 +111,7 @@ class Topological_Loss(torch.nn.Module):
 
             # else:
             #     point_m = bins_mask
-
-            pi_pred     = self.cubicalcomplex(prediction)
-            pi_mask     = self.cubicalcomplex(masks[i])
-            topo_loss   = self.wloss(pi_mask,pi_pred)             
-            totalloss   +=topo_loss
-        loss        = self.lam * totalloss/predictions.shape[0]
-        return loss
-
-def create_mask(border_width=5):
-    device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    mask = torch.ones(256,256)
-    mask[:border_width, :] = 0
-    mask[-border_width:, :] = 0
-    mask[:, :border_width] = 0
-    mask[:, -border_width:] = 0
-    return mask.to(device)
-
-'''
-
-    # predictions_q  = torch.round(prediction  * 10) / 10 
-    # masks_q  = torch.round(masks[i]  * ) / 10
-    
-    gd.plot_persistence_diagram(diag1)
-    
-    peristent_diag(masks[i],masks[i],pi_mask,predictions[i],predictions[i],pi_pred,topo_loss)
-
-    barcod(edges_mask,pi_mask,point_m,edges_pred,pi_pred,point_p,topo_loss)
-    barcod(thresholded_mask,pi_mask_c,point_m,thresholded_pred,pi_pred_c,point_p,topo_loss_c)
-
-    figures (model_output,sobel_predictions,bins_pred,point_p,labels,sobel_masks,bins_mask,point_m,i,topo_loss)
-    barcod(labels[i][0],pi_mask,point_m,model_output[i][0],pi_pred,point_p,1,topo_loss) 
-    barcod(edges_mask,pi_mask,point_m,edges_pred,pi_pred,point_p,topo_loss)
-
 ''' 
-
-def soft_point_cloud_extraction(sobel_edges, temperature=1.0):
-    # Create a grid of coordinates that correspond to pixel locations
-    device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    grid_x, grid_y = torch.meshgrid(torch.arange(sobel_edges.size(0)), torch.arange(sobel_edges.size(1)), indexing='ij')
-    
-    # Stack the grid to create a list of coordinates (Nx2)
-    coords = torch.stack([grid_x, grid_y], dim=2).reshape(-1, 2).float().to(device)
-    
-    # Flatten the Sobel edges to align with the coordinates (Nx1)
-    edge_values = sobel_edges.reshape(-1)
-    
-    # Apply a softmax with temperature to create soft assignments
-    weights = torch.mean(edge_values)
-    
-    selected_coords = coords[edge_values > torch.mean(sobel_edges)+torch.std(sobel_edges)]
-
-    if selected_coords.shape[0] < 2:
-        print("threshould set to mean")
-        selected_coords = coords[edge_values > torch.mean(sobel_edges)]
-        soft_point_cloud = (selected_coords* weights)/weights
-
-    # Compute a soft point cloud by weighting the coordinates
-    else:
-        soft_point_cloud = (selected_coords * weights)/weights
-    
-    return soft_point_cloud
-
-
-def compute_scale_factor(point_cloud):
-    # Calculate the mean distance of points from the centroid as a scaling factor
-    centroid = torch.mean(point_cloud, dim=0)
-    distances = torch.norm(point_cloud - centroid, dim=1)
-    scale_factor = torch.mean(distances)
-    return scale_factor
-
-
-def sobel_edge_detection(image):
-
-    device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    sobel_x = torch.tensor([[-1., 0., 1.], 
-                            [-2., 0., 2.], 
-                            [-1., 0., 1.]], dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(device)
-
-    sobel_y = torch.tensor([[-1., -2., -1.], 
-                            [ 0.,  0.,  0.], 
-                            [ 1.,  2.,  1.]], dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(device)
-
-    edge_x = torch.nn.functional.conv2d(image, sobel_x, padding=1)
-    edge_y = torch.nn.functional.conv2d(image, sobel_y, padding=1)
-    edge_magnitude = torch.sqrt(edge_x**2 + edge_y**2)
-    return edge_magnitude
-
 
 class Dice_CE_Loss():
     def __init__(self):
@@ -246,6 +170,52 @@ class Dice_CE_Loss():
 
 
 
+def soft_point_cloud_extraction(sobel_edges, temperature=1.0):
+    # Create a grid of coordinates that correspond to pixel locations
+    device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    grid_x, grid_y = torch.meshgrid(torch.arange(sobel_edges.size(0)), torch.arange(sobel_edges.size(1)), indexing='ij')
+    
+    # Stack the grid to create a list of coordinates (Nx2)
+    coords = torch.stack([grid_x, grid_y], dim=2).reshape(-1, 2).float().to(device)
+    
+    # Flatten the Sobel edges to align with the coordinates (Nx1)
+    edge_values = sobel_edges.reshape(-1)
+    
+    # Apply a softmax with temperature to create soft assignments
+    weights = torch.mean(edge_values)
+    
+    selected_coords = coords[edge_values > torch.mean(sobel_edges)+torch.std(sobel_edges)]
+
+    if selected_coords.shape[0] < 2:
+        print("threshould set to mean")
+        selected_coords = coords[edge_values > torch.mean(sobel_edges)]
+        soft_point_cloud = (selected_coords* weights)/weights
+
+    # Compute a soft point cloud by weighting the coordinates
+    else:
+        soft_point_cloud = (selected_coords * weights)/weights
+    
+    return soft_point_cloud
+
+def sobel_edge_detection(image):
+
+    device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    sobel_x = torch.tensor([[-1., 0., 1.], 
+                            [-2., 0., 2.], 
+                            [-1., 0., 1.]], dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(device)
+
+    sobel_y = torch.tensor([[-1., -2., -1.], 
+                            [ 0.,  0.,  0.], 
+                            [ 1.,  2.,  1.]], dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(device)
+
+    edge_x = torch.nn.functional.conv2d(image, sobel_x, padding=1)
+    edge_y = torch.nn.functional.conv2d(image, sobel_y, padding=1)
+    edge_magnitude = torch.sqrt(edge_x**2 + edge_y**2)
+    return edge_magnitude
+
+
 def circular_lbp(img):
     """
     Compute Circular Local Binary Pattern (LBP) for a given image using PyTorch.
@@ -275,6 +245,15 @@ def circular_lbp(img):
     
     return lbp_img
 
+
+def create_mask(border_width=5):
+    device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    mask = torch.ones(256,256)
+    mask[:border_width, :] = 0
+    mask[-border_width:, :] = 0
+    mask[:, :border_width] = 0
+    mask[:, -border_width:] = 0
+    return mask.to(device)
 
 '''
             lbf_out   = circular_lbp(labels[i]).squeeze()
