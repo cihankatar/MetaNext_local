@@ -8,8 +8,8 @@ def testsample(images, labels, prediction,n):
     rand_idx = n #np.random.randint(batch_size)
     prediction    = prediction[rand_idx]        ## (1, 512, 512)
     prediction    = np.squeeze(prediction)     ## (512, 512)
-    #prediction    = prediction > 0.5
-    #prediction    = np.array(prediction, dtype=np.uint8)
+    prediction    = prediction > 0.6
+    prediction    = np.array(prediction, dtype=np.uint8)
     prediction    = np.transpose(prediction)
 
     im_test       = np.array(images[rand_idx]*255,dtype=int)
@@ -22,15 +22,14 @@ def testsample(images, labels, prediction,n):
 
     plt.figure()
     plt.subplot(1, 3, 1)
-    plt.title('test_image')
     plt.imshow(im_test) 
+    plt.axis('off')
     plt.subplot(1, 3, 2)
-    plt.title('prediction')
-    plt.imshow(prediction)
+    plt.imshow(prediction,cmap='gray')
+    plt.axis('off')
     plt.subplot(1, 3, 3)
-    plt.title('label')
-    plt.imshow(label_test)
-
+    plt.imshow(label_test,cmap='gray')
+    plt.axis('off')
 
 def trainsample(images,labels,model_output,n):
     import torch.nn as nn

@@ -129,7 +129,7 @@ class Bottleneck(nn.Module):
         return out
 #####   MODEL #####
     
-class model_topo(nn.Module):
+class model_topo_32_avg_05(nn.Module):
     def __init__(self,n_classes,config_res=None,training_mode=None,imnetpretrained=None):
         super().__init__()
         

@@ -21,18 +21,16 @@ class Topological_Loss(torch.nn.Module):
         self.cubicalcomplex     = CubicalComplex()
         self.wloss              = WassersteinDistance(p=2)
         self.sigmoid_f          = nn.Sigmoid()
-        self.maxpool            = nn.MaxPool2d(2,2)
+        self.avgpool            = nn.AvgPool2d(2,2)
   
     def forward(self, model_output,labels):
 
         totalloss             = 0
-        model_output_r        = self.maxpool(self.maxpool(model_output))
-        labels_r              = self.maxpool(self.maxpool(labels))
-        
+        model_output_r        = self.avgpool(self.avgpool(self.avgpool(model_output)))
+        labels_r              = self.avgpool(self.avgpool(self.avgpool(labels)))
         model_output_r        = self.sigmoid_f(model_output_r)
         predictions           = torch.squeeze(model_output_r,dim=1) 
         masks                 = torch.squeeze(labels_r,dim=1)
-    
         pi_pred               = self.cubicalcomplex(predictions)
         pi_mask               = self.cubicalcomplex(masks)
         
@@ -142,7 +140,7 @@ class Dice_CE_Loss():
         return entropy_with_logic
 
     def Dice_BCE_Loss(self,input,target):
-        return self.Dice_Loss(input,target) + self.BCE_loss(input,target)
+        return self.Dice_Loss(input,target) + self.BCE_loss(input,target) 
 
     # Manuel cross entropy loss 
     def softmax_manuel(self,input):

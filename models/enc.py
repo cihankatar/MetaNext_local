@@ -64,6 +64,7 @@ class Mlp(nn.Module):
         self.act = act_layer()
         self.drop1 = nn.Dropout(drop_probs[0])
         self.fc2 = nn.Linear(hidden_features, out_features, bias=bias)
+        self.norm = nn.LayerNorm(dim)
         self.drop2 = nn.Dropout(drop_probs[1])
 
     def forward(self, x):
@@ -72,6 +73,7 @@ class Mlp(nn.Module):
         x = self.act(x)
         x = self.drop1(x)
         x = self.fc2(x)
+        x = self.norm(x)
         x = self.drop2(x)
         return x.permute(0, 3, 1, 2)
 
@@ -214,6 +216,7 @@ class ConvBlock(nn.Module):
         x = self.drop_path(x)
         x = x.permute(0, 3, 1, 2)
         return x
+
     
 class SepConv(nn.Module):
     """ 
