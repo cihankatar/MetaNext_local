@@ -52,7 +52,7 @@ def using_device():
 def main():
 
     #### Initial Configs ###
-    data            ='kvasir_1'
+    data            ='isic_1'
     training_mode   ="supervised"
     train           = True
     addtopoloss     = True
