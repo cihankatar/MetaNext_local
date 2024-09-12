@@ -13,9 +13,6 @@ def device_f():
     return device
 
 
-#####  GLAM Module  #####
-
-
 class LocalAttention(nn.Module):
 
     def __init__(self, dim, drop=0.):
@@ -129,20 +126,20 @@ class Bottleneck(nn.Module):
         return out
 #####   MODEL #####
     
-class model_topo_32_avg_05(nn.Module):
+class model_newdesign_last(nn.Module):
     def __init__(self,n_classes,config_res=None,training_mode=None,imnetpretrained=None):
         super().__init__()
         
-        self.n_classes = n_classes
-        self.config_res =config_res
-        self.training_mode=training_mode
-        self.bottleneck = Bottleneck(512, 512)
-        size_dec=[512,256,128,64]
+        self.n_classes     = n_classes
+        self.config_res    = config_res
+        self.training_mode = training_mode
+        self.bottleneck    = Bottleneck(512, 512)
+        size_dec           = [512,256,128,64]
 
         if not self.training_mode ==  "ssl_pretrained": 
             self.encoder      = encoder_function(config_res,training_mode,imnetpretrained)
 
-        self.decoder           = decoder_function()
+        self.decoder          = decoder_function()
         
         #self.GLAM                = nn.ModuleList([BasicBlock(in_f, out_f) for in_f, out_f in zip(size_dec[::-1],size_dec[::-1])])  
 

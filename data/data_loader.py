@@ -123,7 +123,7 @@ def loader(mode,sslmode,train,batch_size,num_workers,image_size,cutout_pr,cutout
         data_train  = dataset(train_im_path,train_mask_path,cutout_pr,cutout_box, aug, transformations,mode)
 
     else:
-        data_test   = dataset(test_im_path[30:40], test_mask_path[30:40],cutout_pr,cutout_box, aug, transformations,mode)
+        data_test   = dataset(test_im_path, test_mask_path,cutout_pr,cutout_box, aug, transformations,mode)
 
     if train:
         train_loader = DataLoader(

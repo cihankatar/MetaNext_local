@@ -28,7 +28,7 @@ from models.CA_Proposed import CA_Proposed
 from models.Unet import UNET
 from models.CA_CBA_Proposed import CA_CBA_Proposed
 #from models.Model import model_topo
-from models.Model import model_topo_32_avg_05
+from models.Model import model_newdesign_last
 from SSL.simclr import SimCLR
 from models.Metaformer import caformer_s18_in21ft1k
 from models.resnet import resnet_v1
@@ -67,7 +67,7 @@ if __name__ == "__main__":
 
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model                       = model_topo_32_avg_05(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model                       = model_newdesign_last(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":
@@ -79,7 +79,6 @@ if __name__ == "__main__":
     checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
     trainable_params            = sum(	p.numel() for p in model.parameters() if p.requires_grad)
     
-    args.shuffle = False
     args.aug       = False
     
     test_loader    = loader(
@@ -117,8 +116,6 @@ if __name__ == "__main__":
 
 
     #TopoLoss                    = Topological_Loss(lam=0.5).to(device)
-
-    args.shuffle = False
     
     for batch in tqdm(test_loader, desc=f"testing ", leave=False):
         images,labels   = batch                
