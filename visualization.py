@@ -8,7 +8,7 @@ def testsample(images, labels, prediction,n):
     rand_idx = n #np.random.randint(batch_size)
     prediction    = prediction[rand_idx]        ## (1, 512, 512)
     prediction    = np.squeeze(prediction)     ## (512, 512)
-    prediction    = prediction > 0.6
+    prediction    = prediction > 0.5
     prediction    = np.array(prediction, dtype=np.uint8)
     prediction    = np.transpose(prediction)
 
@@ -22,13 +22,16 @@ def testsample(images, labels, prediction,n):
 
     plt.figure()
     plt.subplot(1, 3, 1)
-    plt.imshow(im_test) 
+    plt.imshow(im_test)
+    plt.title("Image") 
     plt.axis('off')
     plt.subplot(1, 3, 2)
     plt.imshow(prediction,cmap='gray')
+    plt.title("Model Prediction") 
     plt.axis('off')
     plt.subplot(1, 3, 3)
     plt.imshow(label_test,cmap='gray')
+    plt.title("Mask") 
     plt.axis('off')
 
 def trainsample(images,labels,model_output,n):
