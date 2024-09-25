@@ -1,9 +1,9 @@
 #!/bin/bash
 
-#SBATCH -p barbun-cuda       							# Kuyruk adi: Uzerinde GPU olan kuyruk olmasina dikkat edin.
+#SBATCH -p akya-cuda       							# Kuyruk adi: Uzerinde GPU olan kuyruk olmasina dikkat edin.
 #SBATCH -A ckatar          							# Kullanici adi
-#SBATCH -J barbun-5   							# Gonderilen isin ismi
-#SBATCH -o trainkvasir.out			  			        # Ciktinin yazilacagi dosya adi
+#SBATCH -J akya-10  							# Gonderilen isin ismi
+#SBATCH -o traink7bce_topo.out			  			        # Ciktinin yazilacagi dosya adi
 #SBATCH --gres=gpu:2        							# Her bir sunucuda kac GPU istiyorsunuz? Kumeleri kontrol edin.
 #SBATCH -N 1                							# Gorev kac node'da calisacak?
 #SBATCH -n 1                							# Ayni gorevden kac adet calistirilacak?
@@ -17,4 +17,4 @@ eval "$(/truba/sw/centos7.3/lib/anaconda3/2021.11/bin/conda shell.bash hook)"
 
 conda activate segmentation
 cd Desktop/MetaNext_local
-python trainMLP.py -p=False -i=256 -b=8 -x=0.5 -o=0.5 -e=400
+python traink7_bcetopo.py -p=False -i=256 -b=8 -x=0.5 -o=0.5 -e=400

@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 #import time
 #from models.Metaformer import caformer_s18_in21ft1k
-from models.enc import encoder_function
-from models.dec import decoder_function
+from models.enc6 import encoder_function
+from models.dec6 import decoder_function
 import torch.nn as nn
 from SSL.simclr import SimCLR
 

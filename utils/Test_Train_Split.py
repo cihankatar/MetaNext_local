@@ -16,7 +16,7 @@ def split(all_list, all_path, data_paths):
             img_dir = os.path.join(data_path,list[idx])
             if 'jpg' in img_dir:
                 img =Image.open(img_dir)
-                img = img.resize((512, 512))
+                img = img.resize((256, 256))
                 img=np.array(img,dtype=float)
                 img = img[:, :, [2, 1, 0]]
                 cv2.imwrite(list[idx], img)     
@@ -24,15 +24,15 @@ def split(all_list, all_path, data_paths):
             if 'png' in img_dir:
                 img = Image.open(img_dir)
                 img = img.convert("RGB") 
-                img = img.resize((512, 512))
+                img = img.resize((256, 256))
                 img = np.array(img,dtype=float)
                 img = img[:, :, [2, 1, 0]]
                 cv2.imwrite(list[idx], img)     
 
 
 def data_path(main_path):
-    im_path         = main_path + "/data/images"
-    mask_path       = main_path + "/data/masks"
+    im_path         = main_path + "/images"
+    mask_path       = main_path + "/masks"
     data_path       = [im_path, mask_path,im_path, mask_path,im_path, mask_path]
     return data_path
 
@@ -49,10 +49,10 @@ def dir_list(data_paths):
         # not present in value
         if ".jpg" not in im:
             images_dir_list.remove(im)
-        if ".jpg" not in msk:
+        if ".png" not in msk:
             mask_dir_list.remove(msk)
 
-    split_ratio     = [800,100,100]
+    split_ratio     = [8000,1000,1015]
 #   split_ratio     = [int(len(images_dir_list)*0.7),int(len(images_dir_list)*0.2),int(len(images_dir_list)*0.1)]
     train_idx,test_idx,val_idx     = random_split(images_dir_list, split_ratio, generator=torch.Generator().manual_seed(42))
     train_masks,test_masks,val_masks = random_split(mask_dir_list, split_ratio, generator=torch.Generator().manual_seed(42))
@@ -67,7 +67,7 @@ def dir_list(data_paths):
     return all_list
 
 def split_main():
-    dataset="kvasir_1"
+    dataset="HAM10000"
 
     main_path   = os.environ["ML_DATA_ROOT"]+dataset
     
@@ -128,5 +128,3 @@ def ssl_data_split(ssl_size):
         images_list = read_line.readlines()
 
     return im_train_list,mask_train_list
-
-

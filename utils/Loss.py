@@ -111,6 +111,13 @@ class Topological_Loss(torch.nn.Module):
             #     point_m = bins_mask
 ''' 
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
+
+
+
 class Dice_CE_Loss():
     def __init__(self):
 
@@ -141,7 +148,8 @@ class Dice_CE_Loss():
 
     def Dice_BCE_Loss(self,input,target):
         return self.Dice_Loss(input,target) + self.BCE_loss(input,target) 
-
+    
+    
     # Manuel cross entropy loss 
     def softmax_manuel(self,input):
         return (torch.exp(input).t() / torch.sum(torch.exp(input),dim=1)).t()

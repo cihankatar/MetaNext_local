@@ -63,7 +63,7 @@ def data_transform(mode,task,train,image_size):
 def loader(mode,sslmode,train,batch_size,num_workers,image_size,cutout_pr,cutout_box,aug,shuffle,split_ratio,data):
     
     if data=='isic_1':
-        foldernamepath="isic_2018_1/"
+        foldernamepath="isic_2018_6/"
         imageext="/*.jpg"
         maskext="/*.png"
     elif data == 'kvasir_1':
@@ -73,7 +73,7 @@ def loader(mode,sslmode,train,batch_size,num_workers,image_size,cutout_pr,cutout
     elif data == 'ham_1':
         foldernamepath="HAM10000_1/"
         imageext="/*.jpg"
-        maskext="/*.png"
+        maskext="/*.png" 
 
     train_im_path   = os.environ["ML_DATA_ROOT"]+foldernamepath+"train/images"   
     train_mask_path = os.environ["ML_DATA_ROOT"]+foldernamepath+"train/masks"
@@ -127,7 +127,7 @@ def loader(mode,sslmode,train,batch_size,num_workers,image_size,cutout_pr,cutout
         data_train  = dataset(train_im_path,train_mask_path,cutout_pr,cutout_box, aug, transformations,mode)
 
     else:
-        data_test   = dataset(test_im_path[600:700], test_mask_path[600:700],cutout_pr,cutout_box, aug, transformations,mode)
+        data_test   = dataset(test_im_path, test_mask_path,cutout_pr,cutout_box, aug, transformations,mode)
 
     if train:
         train_loader = DataLoader(

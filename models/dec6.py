@@ -10,69 +10,6 @@ import sys
 #from transformers import ViTImageProcessor, ViTForImageClassification
 
 
-class Attention(nn.Module):
-    """
-    Vanilla self-attention from Transformer: https://arxiv.org/abs/1706.03762.
-    Modified from timm.
-    """
-    def __init__(self, dim, head_dim=32, num_heads=None, qkv_bias=False,
-        attn_drop=0., proj_drop=0., proj_bias=False, **kwargs):
-        super().__init__()
-
-        self.head_dim = head_dim
-        self.scale = head_dim ** -0.5   #embed_dim/head_number = head
-
-        self.num_heads = num_heads if num_heads else dim // head_dim
-
-        if self.num_heads == 0:
-            self.num_heads = 1
-        
-        self.attention_dim = self.num_heads * self.head_dim
-        
-        
-        self.qkv        = nn.Linear(dim, self.attention_dim * 3, bias=qkv_bias)
-        self.attn_drop  = nn.Dropout(attn_drop)
-        self.proj       = nn.Linear(self.attention_dim, dim, bias=proj_bias)
-        self.proj_drop  = nn.Dropout(proj_drop)
-
-        
-    def forward(self, x):
-        B, H, W, C = x.shape
-        N = H * W
-        
-        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv.unbind(0)   # make torchscript happy (cannot use tensor as tuple)
-
-        attn = (q @ k.transpose(-2, -1)) * self.scale
-        attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
-
-        x = (attn @ v).transpose(1, 2).reshape(B, H, W, self.attention_dim)
-        x = self.proj(x)
-        x = self.proj_drop(x)
-        return x
-
-class upsampling(nn.Module):
-
-    def __init__(self, in_channels, out_channels, 
-        kernel_size, stride=1, padding=0, 
-        pre_norm=None, post_norm=None, pre_permute=False):
-        super().__init__()
-        self.pre_norm = pre_norm(in_channels) if pre_norm else nn.Identity()
-        self.pre_permute = pre_permute
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, 
-                              stride=stride, padding=padding)
-        self.act= nn.GELU()
-        self.up   = nn.Upsample(scale_factor=2, mode='nearest')
-        
-        self.post_norm = post_norm(out_channels) if post_norm else nn.Identity()
-
-    def forward(self, x):
-        x= self.pre_norm(x)
-        x = self.conv(x.permute(0, 3, 1, 2))
-        x = self.act(x)
-        x = self.up(x)
-        return x
 
 class Scale(nn.Module):
     """
@@ -128,29 +65,114 @@ class LayerNormWithoutBias(nn.Module):
         return F.layer_norm(x, self.normalized_shape, weight=self.weight, bias=self.bias, eps=self.eps)
 
 
+class Mlp(nn.Module):
+    """ MLP as used in MetaFormer models, eg Transformer, MLP-Mixer, PoolFormer, MetaFormer baslines and related networks.
+    Mostly copied from timm.
+    """
+    def __init__(self, dim, mlp_ratio=4, out_features=None, act_layer=nn.GELU, drop=0., bias=False, **kwargs):
+        super().__init__()
+        in_features = dim
+        out_features = out_features or in_features
+        hidden_features = int(mlp_ratio * in_features)
+        drop_probs = (drop,drop)
+
+        self.fc1 = nn.Linear(in_features, hidden_features, bias=bias)
+        self.act = act_layer()
+        self.drop1 = nn.Dropout(drop_probs[0])
+        self.fc2 = nn.Linear(hidden_features, out_features, bias=bias)
+        self.norm = nn.LayerNorm(dim)
+        self.drop2 = nn.Dropout(drop_probs[1])
+
+    def forward(self, x):
+        x = x.permute(0, 2, 3, 1)
+        x = self.fc1(x)
+        x = self.act(x)
+        x = self.drop1(x)
+        x = self.fc2(x)
+        x = self.norm(x)
+        x = self.drop2(x)
+        return x.permute(0, 3, 1, 2)
+
+class Attention(nn.Module):
+    """
+    Vanilla self-attention from Transformer: https://arxiv.org/abs/1706.03762.
+    Modified from timm.
+    """
+    def __init__(self, dim, head_dim=32, num_heads=None, qkv_bias=False,
+        attn_drop=0.2, proj_drop=0.2, proj_bias=False, **kwargs):
+        super().__init__()
+
+        self.head_dim = head_dim
+        self.scale = head_dim ** -0.5   #embed_dim/head_number = head
+
+        self.num_heads = num_heads if num_heads else dim // head_dim
+
+        if self.num_heads == 0:
+            self.num_heads = 1
+        
+        self.attention_dim = self.num_heads * self.head_dim
+
+        self.qkv        = nn.Linear(dim, self.attention_dim * 3, bias=qkv_bias)
+        self.attn_drop  = nn.Dropout(attn_drop)
+        self.proj       = nn.Linear(self.attention_dim, dim, bias=proj_bias)
+        self.proj_drop  = nn.Dropout(proj_drop)
+
+        
+    def forward(self, x):
+        x = x.permute(0, 2, 3, 1)
+        B, H, W, C = x.shape
+        N = H * W
+        
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv.unbind(0)   # make torchscript happy (cannot use tensor as tuple)
+
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+
+        x = (attn @ v).transpose(1, 2).reshape(B, H, W, self.attention_dim)
+        x = self.proj(x)
+        x = self.proj_drop(x)
+        return x.permute(0, 3, 1, 2)
 
 
-UPSAMPLE_LAYERS_FOUR_STAGES =[partial(upsampling,
-                kernel_size=3, padding='same', 
-                pre_norm=partial(LayerNormGeneral, bias=False, eps=1e-6)
-            )]*3
+class upsampling(nn.Module):
 
+    def __init__(self, in_channels, out_channels, 
+        kernel_size, stride=1, padding=0, 
+        pre_norm=None, post_norm=None, pre_permute=False):
+        super().__init__()
+        self.pre_norm = pre_norm(in_channels) if pre_norm else nn.Identity()
+        self.pre_permute = pre_permute
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding)
+        #self.dilatedconv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding="same",dilation=3)
+        #self.dilatedconv = nn.Conv2d(in_channels, out_channels, kernel_size=3, dilation=3,padding="same") # 15x15
 
+        self.norm = nn.LayerNorm(out_channels)
+        #self.norm = nn.BatchNorm2d(out_channels)
 
-class SepConv(nn.Module):
+        self.act= nn.GELU()
+        self.up   = nn.Upsample(scale_factor=2, mode='nearest')
+        
+        self.post_norm = post_norm(out_channels) if post_norm else nn.Identity()
+
+    def forward(self, x):
+        x = self.conv(x)
+        x= self.norm(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+        x = self.act(x)
+        x= self.up(x)
+        return x
+
+class ConvBlock(nn.Module):
     """ 
 
     """
-    def __init__(self, dim,spsize, drop=0.):
+    def __init__(self, dim, drop=0.):
         super().__init__()
 
         self.dwconv = nn.Conv2d(dim, dim, kernel_size=3, padding='same',groups=dim) # depthwise conv
-        self.dwconv1 = nn.Conv2d(dim, dim, kernel_size=3, padding='same',groups=dim,dilation=3) # depthwise conv
-        self.dwconv2 = nn.Conv2d(dim, dim, kernel_size=3, padding='same',groups=dim,dilation=6) # depthwise conv
 
-
-        self.pwconv = nn.Linear(spsize, dim) # pointwise/1x1 convs, implemented with linear layers
-        
+        #self.norm = nn.BatchNorm2d(dim)
         self.norm = nn.LayerNorm(dim, eps=1e-6)
         self.pwconv1 = nn.Linear(dim, 4 * dim) # pointwise/1x1 convs, implemented with linear layers
         self.act = nn.GELU()
@@ -159,87 +181,111 @@ class SepConv(nn.Module):
 
     def forward(self, x):
         
-        x = x.permute(0, 3, 1, 2) # (N, C, H, W) -> (N, H, W, C)
         x = self.dwconv(x)#self.dwconv2(x)+self.dwconv3(x)
         x = x.permute(0, 2, 3, 1)
         x = self.norm(x)
+        x = self.act(x)
+        x = self.pwconv1(x)
+        x = self.act(x)
+        x = self.pwconv2(x)
+        x = self.norm(x)
+        x = self.act(x)
+        x = self.drop_path(x)
+        x = x.permute(0, 3, 1, 2)
+        return x
 
-        x1 = x.permute(0, 3, 1, 2) # (N, C, H, W) -> (N, H, W, C)
-        x1 = self.dwconv1(x1)#self.dwconv2(x)+self.dwconv3(x)
-        x1 = x1.permute(0, 2, 3, 1)
-        x1 = self.norm(x1)
 
-        x2 = x1.permute(0, 3, 1, 2) # (N, C, H, W) -> (N, H, W, C)
-        x2 = self.dwconv2(x2)#self.dwconv2(x)+self.dwconv3(x)
-        x2 = x2.permute(0, 2, 3, 1)
-        x2 = self.norm(x2)
-        x2 = self.act(x2)
 
-        matmul=(x@x2.transpose(-2, -1) ).softmax(dim=-1)
-        out = self.pwconv(matmul)
-        out = self.act(out)
 
-        out = self.pwconv1(out)
-        out = self.act(out)
-        out = self.pwconv2(out)
-        out = self.drop_path(out)
-        return out
+class SepConv(nn.Module):
+    """ 
+
+    """
+    def __init__(self, dim, drop=0.):
+        super().__init__()
+
+        self.dwconv = nn.Conv2d(dim, dim, kernel_size=3, padding='same',groups=dim) # depthwise conv
+
+        #self.norm = nn.BatchNorm2d(dim)
+        self.norm = nn.LayerNorm(dim, eps=1e-6)
+        self.pwconv1 = nn.Linear(dim, 4 * dim) # pointwise/1x1 convs, implemented with linear layers
+        self.act = nn.GELU()
+        self.pwconv2 = nn.Linear(4 * dim, dim)
+        self.drop_path = DropPath(drop) if drop > 0. else nn.Identity()
+
+    def forward(self, x):
+        
+        x = self.dwconv(x)#self.dwconv2(x)+self.dwconv3(x)
+        x = x.permute(0, 2, 3, 1)
+        x = self.norm(x)
+        x = self.act(x)
+
+        x = self.pwconv1(x)
+        x = self.act(x)
+        x = self.pwconv2(x)
+        x = self.norm(x)
+        x = self.act(x)
+        x = self.drop_path(x)
+        x = x.permute(0, 3, 1, 2)
+        return x
+
+UPSAMPLE_LAYERS_FOUR_STAGES =[partial(upsampling,
+                kernel_size=3, padding='same', 
+                pre_norm=partial(LayerNormGeneral, bias=False, eps=1e-6)
+            )]*3
 
 
 class DecoderBlocks(nn.Module):
     """
     Implementation of one MetaFormer block.
     """
-    def __init__(self, dim,spsize,
+    def __init__(self, dim,
                  token_mixer=nn.Identity,
-                 cblock=SepConv,
-                 norm_layer=nn.LayerNorm,
+                 cblock=Mlp,
+                 #norm_layer=nn.LayerNorm,
                  drop=0., drop_path=0.,
                  layer_scale_init_value=None, res_scale_init_value=None
                  ):
 
         super().__init__()
 
-        self.norm1          = norm_layer(dim)
-        self.token_mixer    = token_mixer(dim=dim,spsize=spsize, drop=drop)
+        #self.norm1          = norm_layer(dim)
+        self.token_mixer    = token_mixer(dim=dim, drop=drop)
         self.drop_path1     = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-        self.layer_scale1   = Scale(dim=dim, init_value=layer_scale_init_value) if layer_scale_init_value else nn.Identity()
-        self.res_scale1     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
-        self.norm2          = norm_layer(dim)
-        #if self.token_mixer.__class__.__name__=='Attention':
-        self.Cblock         = cblock(dim=dim, spsize=spsize, drop=0)
+        #self.layer_scale1   = Scale(dim=dim, init_value=layer_scale_init_value) if layer_scale_init_value else nn.Identity()
 
+        #self.res_scale1     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
+
+        #self.norm2          = norm_layer(dim)
         self.drop_path2     = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        #if self.token_mixer.__class__.__name__=='Attention':
+        self.Cblock         = cblock(dim=dim, drop=0)
 
-        self.layer_scale2   = Scale(dim=dim, init_value=layer_scale_init_value) if layer_scale_init_value else nn.Identity()
-        self.res_scale2     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
+        #self.layer_scale2   = Scale(dim=dim, init_value=layer_scale_init_value) if layer_scale_init_value else nn.Identity()
+        #self.res_scale2     = Scale(dim=dim, init_value=res_scale_init_value) if res_scale_init_value else nn.Identity()
         
     def forward(self, x):
-
+        x = x + self.drop_path1(self.token_mixer(x))
         if self.token_mixer.__class__.__name__=='Attention':
-            x1 = self.res_scale1(x) + self.layer_scale1(self.drop_path1(self.token_mixer(self.norm1(x))))
-            x2= self.res_scale2(x) + self.layer_scale2(self.drop_path2(self.Cblock(self.norm2(x))))
-            out=x1+x2
+            x = x + self.drop_path2(self.Cblock(x))
         else:
-            x = self.res_scale1(x) + self.layer_scale1(self.drop_path1(self.token_mixer(self.norm1(x))))
-            out = self.res_scale2(x) + self.layer_scale2(self.drop_path2(self.Cblock(self.norm2(x))))
-            
-        return out
+            x = x + self.drop_path2(self.token_mixer(x))
+
+        return x
+    
 
 class Decoder(nn.Module):
 
     def __init__(self, num_classes=1000, 
                  depths=[1,1,1,1],
                  dims=[512,256,128,64],
-                 spsize=[16,32,64,128],
                  up_layers=UPSAMPLE_LAYERS_FOUR_STAGES,
                  token_mixers=nn.Identity,
-                 norm_layers=partial(LayerNormWithoutBias, eps=1e-6), # partial(LayerNormGeneral, eps=1e-6, bias=False),
+                 #norm_layers=partial(LayerNormWithoutBias, eps=1e-6), # partial(LayerNormGeneral, eps=1e-6, bias=False),
                  drop_path_rate=0.,
                  head_dropout=0.0, 
                  layer_scale_init_values=None,
                  res_scale_init_values=[None, None, 1.0, 1.0],
-                 output_norm=partial(nn.LayerNorm, eps=1e-6), 
                  head_fn=nn.Linear,
                  **kwargs,
                  ):
@@ -264,8 +310,8 @@ class Decoder(nn.Module):
             token_mixers = [token_mixers] * num_stage
 
 
-        if not isinstance(norm_layers, (list, tuple)):
-            norm_layers = [norm_layers] * num_stage
+        #if not isinstance(norm_layers, (list, tuple)):
+        #    norm_layers = [norm_layers] * num_stage
         
         dp_rates=[x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
 
@@ -279,9 +325,9 @@ class Decoder(nn.Module):
 
         for i in range(num_stage):
             stage = nn.Sequential(
-                *[DecoderBlocks(  dim=dims[i],spsize=spsize[i],
+                *[DecoderBlocks(  dim=dims[i],
                                     token_mixer=token_mixers[i],
-                                    norm_layer=norm_layers[i],
+                                    #norm_layer=norm_layers[i],
                                     drop_path=dp_rates[cur + j],
                                     layer_scale_init_value=layer_scale_init_values[i],
                                     res_scale_init_value=res_scale_init_values[i],        ) for j in range(depths[i])]
@@ -289,7 +335,6 @@ class Decoder(nn.Module):
             self.stages.append(stage)
             cur += depths[i]
 
-        self.norm = output_norm(dims[-1])
 
         if head_dropout > 0.0:
             self.head = head_fn(dims[-1], num_classes, head_dropout=head_dropout)
@@ -312,13 +357,13 @@ class Decoder(nn.Module):
 
         for i in range(self.num_stage):
 
-            x = self.stages[i](x.permute(0, 2, 3, 1))
+            x = self.stages[i](x)
             x = self.up_layers[i](x)
 
             if i <3:
                 x = s[i] + x
 
-        return self.norm(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+        return x
 
     def forward(self, x,s):
         decoder_output = self.get_features(x,s)

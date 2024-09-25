@@ -2,8 +2,8 @@
 
 #SBATCH -p barbun-cuda       							# Kuyruk adi: Uzerinde GPU olan kuyruk olmasina dikkat edin.
 #SBATCH -A ckatar          							# Kullanici adi
-#SBATCH -J barbun-5   							# Gonderilen isin ismi
-#SBATCH -o trainkvasir.out			  			        # Ciktinin yazilacagi dosya adi
+#SBATCH -J barbun-6  							# Gonderilen isin ismi
+#SBATCH -o trainMLP.out			  			        # Ciktinin yazilacagi dosya adi
 #SBATCH --gres=gpu:2        							# Her bir sunucuda kac GPU istiyorsunuz? Kumeleri kontrol edin.
 #SBATCH -N 1                							# Gorev kac node'da calisacak?
 #SBATCH -n 1                							# Ayni gorevden kac adet calistirilacak?

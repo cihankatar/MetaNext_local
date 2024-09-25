@@ -123,12 +123,13 @@ class Dice_CE_Loss():
     
     def Dice_Loss(self,input,target):
 
-        smooth          = 1
+        smooth          = 1e-6
         input           = self.sigmoid_f(torch.flatten(input=input))
         target          = torch.flatten(input=target)
         intersection    = (input * target).sum()
         dice_loss       = 1- (2.*intersection + smooth )/(input.sum() + target.sum() + smooth)
         return dice_loss
+    
 
     def BCE_loss(self,input,target):
         input           = torch.flatten(input=input)

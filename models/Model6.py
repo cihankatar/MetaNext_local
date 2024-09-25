@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 #import time
 #from models.Metaformer import caformer_s18_in21ft1k
-from models.enc import encoder_function
-from models.dec import decoder_function
+from models.enc6 import encoder_function
+from models.dec6 import decoder_function
 import torch.nn as nn
 from SSL.simclr import SimCLR
 
@@ -126,7 +126,7 @@ class Bottleneck(nn.Module):
         return out
 #####   MODEL #####
     
-class model_dice_bce_MLP(nn.Module):
+class model_bce_topoMLP(nn.Module):
     def __init__(self,n_classes,config_res=None,training_mode=None,imnetpretrained=None):
         super().__init__()
         

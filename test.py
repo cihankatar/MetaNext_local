@@ -28,7 +28,7 @@ from models.CA_Proposed import CA_Proposed
 from models.Unet import UNET
 from models.CA_CBA_Proposed import CA_CBA_Proposed
 #from models.Model import model_topo
-from models.Model import model_dice_topo
+from models.Model import model_tripleloss
 from SSL.simclr import SimCLR
 from models.Metaformer import caformer_s18_in21ft1k
 from models.resnet import resnet_v1
@@ -47,14 +47,16 @@ if __name__ == "__main__":
 
     device      = using_device()
 
-    data='isic_1'
+    data='ham_1'
     training_mode="supervised"
     train=False
 
-    if data =='isic_1':
-        foldernamepath ="isic_1/"
+    if data=='isic_1':
+        foldernamepath="isic_1/"
     elif data == 'kvasir_1':
-        foldernamepath ="kvasir_1/"
+        foldernamepath="kvasir_1/"
+    elif data == 'ham_1':
+        foldernamepath="ham_1/"
 
     WANDB_DIR           = os.environ["WANDB_DIR"]
     WANDB_API_KEY       = os.environ["WANDB_API_KEY"]
@@ -65,9 +67,9 @@ if __name__ == "__main__":
     config_res          = ', '.join(config_res)
     config              = wandb_init(WANDB_API_KEY,WANDB_DIR,args,config_res,data)
 
-
+    args.shuffle=False  
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model                       = model_dice_topo(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model                       = model_tripleloss(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":
@@ -80,7 +82,7 @@ if __name__ == "__main__":
     trainable_params            = sum(	p.numel() for p in model.parameters() if p.requires_grad)
     
     args.aug       = False
-    
+    args.shuffle = True
     test_loader    = loader(
                             args.mode,
                             args.sslmode_modelname,
@@ -116,7 +118,7 @@ if __name__ == "__main__":
 
 
     #TopoLoss                    = Topological_Loss(lam=0.5).to(device)
-    
+
     for batch in tqdm(test_loader, desc=f"testing ", leave=False):
         images,labels   = batch                
 
@@ -144,8 +146,10 @@ if __name__ == "__main__":
                         "recall"      : metrics_score[2]/len(test_loader),
                         "precision"   : metrics_score[3]/len(test_loader),
                         "acc"         : metrics_score[4]/len(test_loader)
-                        }
-        print(f" Jaccard (IoU): {acc['jaccard']:1.4f} - F1(Dice): {acc['f1']:1.4f} - Recall: {acc['recall']:1.4f} - Precision: {acc['precision']:1.4f} - Acc: {acc['acc']:1.4f} ")
+                        }        
+
+
+            print(f" Jaccard (IoU): {acc['jaccard']:1.4f} - F1(Dice): {acc['f1']:1.4f} - Recall: {acc['recall']:1.4f} - Precision: {acc['precision']:1.4f} - Acc: {acc['acc']:1.4f} ")
 
         #  PLOTTING  #
 

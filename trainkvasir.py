@@ -79,7 +79,6 @@ def main():
     config_res            = ', '.join(config_res)
     config                = wandb_init(WANDB_API_KEY,WANDB_DIR,args,config_res,data)
     #config               = load_config("config.yaml")
-
     train_loader    = loader(
                             args.mode,
                             args.sslmode_modelname,
@@ -109,7 +108,6 @@ def main():
                             args.sratio,
                             data )
     args.aug = True
-
     ##### Model Building based on arguments  ####
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":

@@ -70,6 +70,10 @@ def loader(mode,sslmode,train,batch_size,num_workers,image_size,cutout_pr,cutout
         foldernamepath="kvasir_1/"
         imageext="/*.jpg"
         maskext="/*.jpg"
+    elif data == 'ham_1':
+        foldernamepath="HAM10000_1/"
+        imageext="/*.jpg"
+        maskext="/*.png"
 
     train_im_path   = os.environ["ML_DATA_ROOT"]+foldernamepath+"train/images"   
     train_mask_path = os.environ["ML_DATA_ROOT"]+foldernamepath+"train/masks"
