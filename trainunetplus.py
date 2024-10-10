@@ -17,7 +17,7 @@ from visualization import *
 from wandb_init import parser_init, wandb_init
 
 from models.Metaformer import caformer_s18_in21ft1k
-from models.UNETplus import Unet_2D
+from models.UNETplus import Unet_plus
 from models.resnet import resnet_v1
 from SSL.simclr import SimCLR
 
@@ -113,7 +113,7 @@ def main():
     ##### Model Building based on arguments  ####
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model           = Unet_2D(3, 1, 'train').to(device)
+        model           = Unet_plus(3, 1, 'train').to(device)
         checkpoint_path = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":

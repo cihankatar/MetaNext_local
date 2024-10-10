@@ -175,9 +175,9 @@ class inconv(nn.Module):
 cc = 16  # you can change it to 8, then the model can be more faster ,reaching 35 fps on cpu when testing
 
 
-class Unet_2D(nn.Module):
+class Unet_plus(nn.Module):
     def __init__(self, n_channels, n_classes, mode='train'):
-        super(Unet_2D, self).__init__()
+        super(Unet_plus, self).__init__()
         self.inconv = inconv(n_channels, cc)
         self.down1 = down(cc, 2 * cc)
         self.down2 = down(2 * cc, 4 * cc)
@@ -221,7 +221,7 @@ if __name__ == '__main__':
     import time
 
     x = torch.rand((8, 3, 256, 256))
-    lnet = Unet_2D(3, 1, 'train')
+    lnet = Unet_plus(3, 1, 'train')
     y=lnet(x)
     # calculate model size
     print('    Total params: %.2fMB' % (sum(p.numel() for p in lnet.parameters()) / (1024.0 * 1024) * 4))
