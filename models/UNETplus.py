@@ -207,7 +207,7 @@ class Unet_2D(nn.Module):
             y2 = self.outconv(x)
             y0 = self.outconv(x11)
             y1 = self.outconv(x12)
-            return y0, y1, y2
+            return y2
         else:  # prune the model when testing
             x1 = self.inconv(x)
             x2 = self.down1(x1)

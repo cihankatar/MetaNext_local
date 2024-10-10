@@ -10,14 +10,14 @@ from torch.optim import Adam
 from tqdm import tqdm, trange
 
 from augmentation.Augmentation import Cutout,cutmix
-from data.data_loader2 import loader
+from data.data_loader4 import loader
 from utils.Loss import Dice_CE_Loss, Topological_Loss
 from utils.one_hot_encode import label_encode, one_hot
 from visualization import *
 from wandb_init import parser_init, wandb_init
 
 from models.Metaformer import caformer_s18_in21ft1k
-from models.Attunet import AttU_Net
+from models.TransUNET import TransUNet
 from models.resnet import resnet_v1
 from SSL.simclr import SimCLR
 
@@ -113,7 +113,14 @@ def main():
     ##### Model Building based on arguments  ####
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model           = AttU_Net().to(device)
+        model           =TransUNet(img_dim=256,
+                          in_channels=3,
+                          out_channels=128,
+                          head_num=4,
+                          mlp_dim=512,
+                          block_num=8,
+                          patch_dim=16,
+                          class_num=1).to(device)
         checkpoint_path = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":
@@ -194,7 +201,6 @@ def main():
         for  batches in train_loader:
             #start=timer.time()
             images,labels   = batches
-
 
             if isinstance(images, (list,tuple)):
                 images=[im.to(device) for im in images] 

@@ -436,8 +436,6 @@ def model_factory_v3_NM(C, D, X, N, drop_path, weights,
         model.load_state_dict(model_dict) ## model.blocks[0].m.qkv.c   == model.block_1[0].m.qkv.c
 
         
-    if fuse:
-        utils.replace_batchnorm(model)
 
     return model
 

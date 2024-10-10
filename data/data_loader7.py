@@ -63,7 +63,7 @@ def data_transform(mode,task,train,image_size):
 def loader(mode,sslmode,train,batch_size,num_workers,image_size,cutout_pr,cutout_box,aug,shuffle,split_ratio,data):
     
     if data=='isic_1':
-        foldernamepath="isic_2018_1/"
+        foldernamepath="isic_2018_7/"
         imageext="/*.jpg"
         maskext="/*.png"
     elif data == 'kvasir_1':

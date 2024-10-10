@@ -294,7 +294,7 @@ def main():
 
 
                 elif args.mode =="supervised":
-                    _,model_output       = model(images)
+                    model_output       = model(images)
                     DiceBCE_l            = loss_function.Dice_BCE_Loss(model_output, labels)
 
                     if addtopoloss:
