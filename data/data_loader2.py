@@ -71,7 +71,7 @@ def loader(mode,sslmode,train,batch_size,num_workers,image_size,cutout_pr,cutout
         imageext="/*.jpg"
         maskext="/*.jpg"
     elif data == 'ham_1':
-        foldernamepath="HAM10000_1/"
+        foldernamepath="HAM10000_2/"
         imageext="/*.jpg"
         maskext="/*.png"
 
