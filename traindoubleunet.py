@@ -10,14 +10,14 @@ from torch.optim import Adam
 from tqdm import tqdm, trange
 
 from augmentation.Augmentation import Cutout,cutmix
-from data.data_loader3 import loader
-from utils.Loss_b import Dice_CE_Loss, Topological_Loss
+from data.data_loader import loader
+from utils.Loss import Dice_CE_Loss, Topological_Loss
 from utils.one_hot_encode import label_encode, one_hot
 from visualization import *
 from wandb_init import parser_init, wandb_init
 
 from models.Metaformer import caformer_s18_in21ft1k
-from models.Model4 import model_dice_bce
+from models.DoubleUnet import build_doubleunet
 from models.resnet import resnet_v1
 from SSL.simclr import SimCLR
 
@@ -113,7 +113,7 @@ def main():
     ##### Model Building based on arguments  ####
 
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model           = model_dice_bce_k7(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model           = build_doubleunet().to(device)
         checkpoint_path = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":
@@ -195,6 +195,7 @@ def main():
             #start=timer.time()
             images,labels   = batches
 
+
             if isinstance(images, (list,tuple)):
                 images=[im.to(device) for im in images] 
                 labels=[lab.to(device) for lab in labels] 
@@ -225,7 +226,7 @@ def main():
                     epoch_loss      += DiceBCE_loss.item() 
 
                 elif args.mode =="supervised":
-                    _,model_output  = model(images)
+                    model_output  = model(images)
                     DiceBCE_loss    = loss_function.Dice_BCE_Loss(model_output, labels)
                     if addtopoloss:
                         topo_loss           = TopoLoss(model_output,labels)

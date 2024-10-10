@@ -40,9 +40,9 @@ def data_transform(mode,task,train,image_size):
         if train:
 
             transformations = v2.Compose([  v2.Resize([image_size,image_size],antialias=True),                                           
-                                        v2.RandomHorizontalFlip(p=0.5),
-                                        v2.RandomVerticalFlip(p=0.5),
-                                        v2.RandomRotation(degrees=(0, 90)),
+                                        #v2.RandomHorizontalFlip(p=0.5),
+                                        #v2.RandomVerticalFlip(p=0.5),
+                                        #v2.RandomRotation(degrees=(0, 90)),
                                         #v2.RandomAdjustSharpness(sharpness_factor=10, p=0.),
                                         #v2.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1)
                                         #v2.RandomPerspective(distortion_scale=0.5, p=0.5),
@@ -127,7 +127,7 @@ def loader(mode,sslmode,train,batch_size,num_workers,image_size,cutout_pr,cutout
         data_train  = dataset(train_im_path,train_mask_path,cutout_pr,cutout_box, aug, transformations,mode)
 
     else:
-        data_test   = dataset(test_im_path[600:700], test_mask_path[600:700],cutout_pr,cutout_box, aug, transformations,mode)
+        data_test   = dataset(test_im_path, test_mask_path,cutout_pr,cutout_box, aug, transformations,mode)
 
     if train:
         train_loader = DataLoader(

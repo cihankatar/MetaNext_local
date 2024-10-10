@@ -25,17 +25,16 @@ from models.Unet import UNET
 from models.CA_Proposed import CA_Proposed
 
 """
-from models.Unet import UNET
-from models.CA_CBA_Proposed import CA_CBA_Proposed
+#from models.Unet import UNET
+#from models.CA_CBA_Proposed import CA_CBA_Proposed
 #from models.Model import model_topo
-from models.Model import model_tripleloss
-from SSL.simclr import SimCLR
-from models.Metaformer import caformer_s18_in21ft1k
-from models.resnet import resnet_v1
-
-from models.Metaformer import caformer_s18_in21ft1k
-from models.resnet import resnet_v1
-from utils.Loss import Dice_CE_Loss#, Topological_Loss
+from models.Unet import UNET
+#from SSL.simclr import SimCLR
+#from models.Metaformer import caformer_s18_in21ft1k
+#from models.resnet import resnet_v1
+#from models.Metaformer import caformer_s18_in21ft1k
+#from models.resnet import resnet_v1
+#from utils.Loss import Dice_CE_Loss#, Topological_Loss
 
 
 def using_device():
@@ -47,7 +46,7 @@ if __name__ == "__main__":
 
     device      = using_device()
 
-    data='ham_1'
+    data='isic_1'
     training_mode="supervised"
     train=False
 
@@ -67,9 +66,8 @@ if __name__ == "__main__":
     config_res          = ', '.join(config_res)
     config              = wandb_init(WANDB_API_KEY,WANDB_DIR,args,config_res,data)
 
-    args.shuffle=False  
     if args.mode == "ssl_pretrained" or args.mode == "supervised":
-        model                       = model_tripleloss(config['n_classes'],config_res,args.mode,args.imnetpr).to(device)
+        model                       = UNET(config['n_classes']).to(device)
         checkpoint_path             = ML_DATA_OUTPUT+str(model.__class__.__name__)+"["+str(res)+"]"
         
         if args.mode == "ssl_pretrained":
@@ -82,7 +80,7 @@ if __name__ == "__main__":
     trainable_params            = sum(	p.numel() for p in model.parameters() if p.requires_grad)
     
     args.aug       = False
-    args.shuffle = True
+    args.shuffle = False
     test_loader    = loader(
                             args.mode,
                             args.sslmode_modelname,
@@ -128,7 +126,7 @@ if __name__ == "__main__":
                 _,features      = pretrained_encoder.get_features(images)
                 model_output    = model(features)
             else:
-                _,model_output    = model(images)
+                model_output    = model(images)
 
             prediction          = torch.sigmoid(model_output)
             #topo_loss           = TopoLoss(model_output,labels)

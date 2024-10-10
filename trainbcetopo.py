@@ -17,7 +17,7 @@ from visualization import *
 from wandb_init import parser_init, wandb_init
 
 from models.Metaformer import caformer_s18_in21ft1k
-from models.Model4 import model_bce_topo
+from models.Model4 import model_dice_bce
 from models.resnet import resnet_v1
 from SSL.simclr import SimCLR
 

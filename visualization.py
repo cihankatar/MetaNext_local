@@ -8,7 +8,7 @@ def testsample(images, labels, prediction,n):
     rand_idx = n #np.random.randint(batch_size)
     prediction    = prediction[rand_idx]        ## (1, 512, 512)
     prediction    = np.squeeze(prediction)     ## (512, 512)
-    prediction    = prediction > 0.5
+    prediction    = prediction > 0.3
     prediction    = np.array(prediction, dtype=np.uint8)
     prediction    = np.transpose(prediction)
 
@@ -34,30 +34,39 @@ def testsample(images, labels, prediction,n):
     plt.title("Mask") 
     plt.axis('off')
 
-def trainsample(images,labels,model_output,n):
+def trainsample(images_copy, images, labels, n):
     import torch.nn as nn
     import numpy as np
     import matplotlib.pyplot as plt
 
+    sigm = nn.Sigmoid() 
 
-    sigm=nn.Sigmoid() 
+    image = images[n].permute(2, 1, 0)
+    label = labels[n].permute(2, 1, 0)
+    image_copy = images_copy[n].permute(2, 1, 0)
 
-    which_image=n
-    image       = images[which_image].permute(2,1,0)
-    label       = labels[which_image].permute(2,1,0)
-    prediction  = model_output[which_image].permute(2,1,0)
-    prediction  = sigm(prediction).detach().numpy()
+    # prediction = model_output[n].permute(2, 1, 0)
+    # prediction = sigm(prediction).detach().numpy()
 
-    plt.figure()
+    plt.figure(figsize=(6, 4))
+
+    # Subplot (a)
     plt.subplot(1, 3, 1)
-    plt.title('test_image')
-    plt.imshow(image) 
-    plt.title('mask')
+    plt.imshow(image_copy)
+    plt.axis('off')
+    # Subplot (b)
     plt.subplot(1, 3, 2)
-    plt.imshow(label)
-    plt.title('prediction')
+    plt.imshow(image)
+    plt.axis('off')
+
+    # Subplot (c)
     plt.subplot(1, 3, 3)
-    plt.imshow(prediction)
+    plt.imshow(label, cmap='gray')
+    plt.axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
 
 def peristent_diag(edges_mask_n,quantized_mask,pi_mask,edges_pred_n,quantized_pred,pi_pred,topo_loss):
    

@@ -126,7 +126,7 @@ class Bottleneck(nn.Module):
         return out
 #####   MODEL #####
     
-class model_dice_bce(nn.Module):
+class model_dice(nn.Module):
     def __init__(self,n_classes,config_res=None,training_mode=None,imnetpretrained=None):
         super().__init__()
         
